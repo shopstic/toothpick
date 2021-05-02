@@ -84,6 +84,7 @@ jobs:
           path: |
             ./target
             ./**/target
+            !./toothpick-server/target/docker
             !./toothpick-runner/target/universal
           key: target-v2-${{ github.sha }}
           restore-keys: |
@@ -176,3 +177,9 @@ jobs:
           ./cli.sh push_helm_chart "${GITHUB_TAG}" "ghcr.io/shopstic/chart-toothpick:${GITHUB_TAG}"
 
           EOF
+
+      - name: Clean up before caching
+        run: |
+          # Remove these when this issue is fixed https://github.com/actions/toolkit/issues/713
+          rm -Rf ./*/target/universal
+          rm -Rf ./*/target/docker
