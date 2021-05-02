@@ -269,9 +269,13 @@ object TpRunnerApp extends zio.App {
                 )
 
               case SuitePerProcessDistribution(suite, tests) =>
+                val testFilterArgs =
+                  if (suite.hasFilters) tests.toList.flatMap(test => Vector(nameFilterFlag, test.fullName))
+                  else Vector.empty
+
                 suite.id -> TpTestRunOptions(
                   image = containerImage,
-                  args = Vector("-s", suite.name) ++ tests.toList.flatMap(test => Vector(nameFilterFlag, test.fullName))
+                  args = Vector("-s", suite.name) ++ testFilterArgs
                 )
             }
             .toMap
@@ -365,7 +369,8 @@ object TpRunnerApp extends zio.App {
       name = "Toothpick Runner",
       id = RUNNER_NODE_ID,
       parentId = ROOT_NODE_ID,
-      duplicateSeq = 0
+      duplicateSeq = 0,
+      hasFilters = false
     )))
 
     val start = app(args)

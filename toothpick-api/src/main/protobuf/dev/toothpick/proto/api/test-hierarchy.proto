@@ -52,4 +52,5 @@ message TpTestSuite {
   int32 id = 2;
   int32 parent_id = 3;
   int32 duplicate_seq = 4;
+  bool has_filters = 5;
 }

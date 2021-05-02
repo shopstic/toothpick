@@ -111,7 +111,8 @@ final class TpScalaTestHierarchyExtractorImpl(loader: ClassLoader, traitName: St
                   name = suiteClassName,
                   id = nextId,
                   parentId = ROOT_NODE_ID,
-                  duplicateSeq = 0
+                  duplicateSeq = 0,
+                  hasFilters = testNameFilters.nonEmpty
                 )
 
                 (suite, map.updated(node, suite), nextId + 1)
