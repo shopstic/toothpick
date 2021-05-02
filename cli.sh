@@ -5,7 +5,7 @@ push_helm_chart() {
   export HELM_APP_VERSION=${1:?"Helm chart app version is required"}
   export HELM_CHART_REF=${2:?"Helm chart ref is required"}
   export HELM_EXPERIMENTAL_OCI=1
-  export HELM_REGISTRY_CONFIG=/root/.docker/config.json
+  export HELM_REGISTRY_CONFIG=/home/runner/.docker/config.json
 
   yq e '.appVersion = env(HELM_APP_VERSION)' -i ./charts/toothpick/Chart.yaml
   yq e '.appVersion = env(HELM_APP_VERSION)' -i ./charts/toothpick/charts/toothpick-master/Chart.yaml
@@ -33,8 +33,8 @@ ci_build_in_shell() {
     -e "GITHUB_TOKEN=${GITHUB_TOKEN}" \
     -e "SERVER_BASE_IMAGE=${SERVER_BASE_IMAGE}" \
     -v "${GITHUB_WORKSPACE}:/repo" \
-    -v "${HOME}/.cache:/root/.cache" \
-    -v "${HOME}/.sbt:/root/.sbt" \
+    -v "${HOME}/.cache:/home/runner/.cache" \
+    -v "${HOME}/.sbt:/home/runner/.sbt" \
     "${SHELL_IMAGE}" \
     bash -euo pipefail
 

@@ -3,7 +3,7 @@ FROM shopstic/bin-helm:3.5.3 as bin-helm
 FROM shopstic/bin-yq:4.6.3 as bin-yq
 FROM shopstic/curl-tar-unzip:1.0.1 as sbt
 
-ENV SBT_VERSION "1.5.0"
+ENV SBT_VERSION "1.5.1"
 
 RUN \
   mkdir /sbt && \
@@ -31,23 +31,30 @@ COPY --from=sbt /sbt /sbt
 COPY --from=fdb /usr/bin/fdb-clients.deb /usr/bin/fdb-clients.deb
 COPY --from=fdb /usr/bin/fdb-server.deb /usr/bin/fdb-server.deb
 
-ENV SCALA_VERSION=2.13.5
-
 RUN \
-  mkdir ~/temp && \
-  cd ~/temp && \
-  mkdir -p ./src/main/scala && \
-  touch ./src/main/scala/temp.scala && \
-  sbt "set scalaVersion := \"${SCALA_VERSION}\"" compile && \
-  rm -Rf ~/temp && \
   apt-get install /usr/bin/fdb-clients.deb -y && \
   apt-get install /usr/bin/fdb-server.deb -y && \
   rm -f /usr/bin/fdb-clients.deb && \
   rm -f /usr/bin/fdb-server.deb
 
-COPY ./.profile /root/.profile
+ARG RUNNER_UID=1001
+ARG RUNNER_GID=115
+
 RUN \
-  echo "" >> /root/.profile && \
-  echo "export PATH=\"$PATH\"" >> /root/.profile
+  (groupadd --gid "${RUNNER_GID}" runner || true) && \
+  useradd --home-dir /home/runner --create-home --uid "${RUNNER_UID}" \
+  --gid "${RUNNER_GID}" --shell /bin/bash --skel /dev/null runner
+
+COPY ./.profile /home/runner/.profile
+
+RUN \
+  chown "${RUNNER_UID}:${RUNNER_GID}" /home/runner/.profile
+
+USER "${RUNNER_UID}:${RUNNER_GID}"
+
+COPY ./.profile /home/runner/.profile
+RUN \
+  echo "" >> /home/runner/.profile && \
+  echo "export PATH=\"$PATH\"" >> /home/runner/.profile
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
