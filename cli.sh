@@ -34,6 +34,7 @@ ci_build_in_shell() {
     -e "SERVER_BASE_IMAGE=${SERVER_BASE_IMAGE}" \
     -v "${GITHUB_WORKSPACE}:/repo" \
     -v "${HOME}/.cache:/root/.cache" \
+    -v "${HOME}/.sbt:/root/.sbt" \
     "${SHELL_IMAGE}" \
     bash -euo pipefail
 
