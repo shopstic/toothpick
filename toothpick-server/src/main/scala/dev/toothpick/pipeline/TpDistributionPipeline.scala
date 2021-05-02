@@ -1,5 +1,6 @@
 package dev.toothpick.pipeline
 
+import akka.http.scaladsl.model.http2.PeerClosedStreamException
 import akka.stream.scaladsl.Sink
 import com.apple.foundationdb.tuple.Versionstamp
 import dev.chopsticks.dstream.DstreamMaster.DstreamMasterConfig
@@ -55,6 +56,8 @@ object TpDistributionPipeline {
           ctx => ZIO.succeed(ctx.distribution)
         ) {
           (ctx, report) =>
+            val runTestId = TpRunTestId(ctx.distribution.runId, ctx.distribution.testId)
+
             for {
               zlogger <- IzLogging.zioLogger
               logger <- IzLogging.logger
@@ -62,7 +65,7 @@ object TpDistributionPipeline {
               nodeName = report.metadata.getText(Dstreams.WORKER_NODE_HEADER).getOrElse("unknown")
               _ <- zlogger
                 .info(
-                  s"Assignment $workerId $nodeName ${ctx.distribution.runId} ${ctx.distribution.testId} ${ctx.distribution.args}"
+                  s"Assignment $workerId $nodeName $runTestId ${ctx.distribution.args}"
                 )
               workerReport <- report
                 .source
@@ -83,7 +86,7 @@ object TpDistributionPipeline {
               }
 
               TpWorkerDistributionResult(
-                runTestId = TpRunTestId(ctx.distribution.runId, ctx.distribution.testId),
+                runTestId = runTestId,
                 versionstamp = ctx.versionstamp,
                 event = TpTestReport(
                   time = workerReport.time,
@@ -91,7 +94,10 @@ object TpDistributionPipeline {
                 )
               )
             }
+
         } { (ctx, task) =>
+          val runTestId = TpRunTestId(ctx.distribution.runId, ctx.distribution.testId)
+
           for {
             zlogger <- IzLogging.zioLogger
             state <- TpState.get
@@ -106,7 +112,7 @@ object TpDistributionPipeline {
               .interruptibleRunIgnore()
               .zipLeft(zlogger.info(s"Got request to abort run ${ctx.distribution.runId}"))
               .as(TpWorkerDistributionResult(
-                runTestId = TpRunTestId(ctx.distribution.runId, ctx.distribution.testId),
+                runTestId = runTestId,
                 versionstamp = ctx.versionstamp,
                 event = TpTestReport(
                   time = Instant.now,
@@ -115,12 +121,26 @@ object TpDistributionPipeline {
               ))
 
             out <- task
+              .retryWhileM {
+                // CANCEL
+                case e: PeerClosedStreamException if e.numericErrorCode == 0x8 =>
+                  state
+                    .api
+                    .columnFamily(state.keyspaces.reports)
+                    .getTask(_ startsWith runTestId)
+                    .fold(_ => false, _.isEmpty)
+                    .tap { willRetry =>
+                      zlogger.warn(s"Worker cancelled prematurely, will retry $runTestId").when(willRetry)
+                    }
+
+                case _ => ZIO.succeed(false)
+              }
               .raceFirst(abortWatchTask)
               .catchAll { exception =>
                 zlogger
                   .error(s"Distribution failed: $exception")
                   .as(TpWorkerDistributionResult(
-                    runTestId = TpRunTestId(ctx.distribution.runId, ctx.distribution.testId),
+                    runTestId = runTestId,
                     versionstamp = ctx.versionstamp,
                     event = TpTestReport(
                       time = Instant.now,
