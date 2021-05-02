@@ -38,7 +38,7 @@ RUN \
   rm -f /usr/bin/fdb-server.deb
 
 ARG RUNNER_UID=1001
-ARG RUNNER_GID=115
+ARG RUNNER_GID=121
 
 RUN \
   (groupadd --gid "${RUNNER_GID}" runner || true) && \
