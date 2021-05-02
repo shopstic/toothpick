@@ -10,8 +10,10 @@ import dev.toothpick.proto.api.{
   TpTestSuite
 }
 import dev.toothpick.runner.TpRunnerModels._
+import dev.toothpick.runner.intellij.TpIntellijServiceMessages.{Attrs, Names}
 
 object TpIntellijServiceMessageRenderer {
+
   def escape(str: String): String = {
     str
       .replace("|", "||")
@@ -62,16 +64,16 @@ object TpIntellijServiceMessageRenderer {
     node match {
       case test: TpTest =>
         render(
-          "testStarted",
+          Names.TEST_STARTED,
           Map(
-            "name" -> test.name,
-            "captureStandardOutput" -> "false",
-            "nodeId" -> test.id.toString,
-            "parentNodeId" -> test.parentId.toString
+            Attrs.NAME -> test.name,
+            Attrs.CAPTURE_STANDARD_OUTPUT -> "false",
+            Attrs.NODE_ID -> test.id.toString,
+            Attrs.PARENT_NODE_ID -> test.parentId.toString
           ) ++ test.location
             .map { loc =>
               Map(
-                "locationHint" -> toLocationHint(loc)
+                Attrs.LOCATION_HINT -> toLocationHint(loc)
               )
             }
             .getOrElse(Map.empty)
@@ -79,17 +81,17 @@ object TpIntellijServiceMessageRenderer {
 
       case group: TpTestGroup =>
         render(
-          "testSuiteStarted",
+          Names.TEST_SUITE_STARTED,
           Map(
-            "name" -> s"${group.name}${group.childNamePrefix.fold("")(p => " " + p)}",
-            "captureStandardOutput" -> "false",
-            "nodeId" -> group.id.toString,
-            "parentNodeId" -> group.parentId.toString
+            Attrs.NAME -> s"${group.name}${group.childNamePrefix.fold("")(p => " " + p)}",
+            Attrs.CAPTURE_STANDARD_OUTPUT -> "false",
+            Attrs.NODE_ID -> group.id.toString,
+            Attrs.PARENT_NODE_ID -> group.parentId.toString
           ) ++ group
             .location
             .map { loc =>
               Map(
-                "locationHint" -> toLocationHint(loc)
+                Attrs.LOCATION_HINT -> toLocationHint(loc)
               )
             }
             .getOrElse(Map.empty)
@@ -98,13 +100,13 @@ object TpIntellijServiceMessageRenderer {
       case suite: TpTestSuite =>
         val prefix = if (suite.duplicateSeq == 0) "" else s"(${suite.duplicateSeq}) "
         render(
-          "testSuiteStarted",
+          Names.TEST_SUITE_STARTED,
           Map(
-            "name" -> s"$prefix${suite.name.drop(suite.name.lastIndexOf(".") + 1)}",
-            "locationHint" -> s"scalatest://TopOfClass:${suite.name}TestName:_",
-            "captureStandardOutput" -> "false",
-            "nodeId" -> suite.id.toString,
-            "parentNodeId" -> ROOT_NODE_ID.toString
+            Attrs.NAME -> s"$prefix${suite.name.drop(suite.name.lastIndexOf(".") + 1)}",
+            Attrs.LOCATION_HINT -> s"scalatest://TopOfClass:${suite.name}TestName:_",
+            Attrs.CAPTURE_STANDARD_OUTPUT -> "false",
+            Attrs.NODE_ID -> suite.id.toString,
+            Attrs.PARENT_NODE_ID -> ROOT_NODE_ID.toString
           )
         )
 

@@ -1,4 +1,5 @@
 package dev.toothpick.app
+import cats.data.NonEmptyList
 import dev.chopsticks.fp.config.{HoconConfig, TypedConfig}
 import dev.chopsticks.fp.iz_logging.{IzLogTemplates, IzLogging, IzLoggingRouter}
 import dev.chopsticks.fp.zio_ext.ZIOExtensions
@@ -9,8 +10,14 @@ import dev.toothpick.runner.TpRunnerModels.{ROOT_NODE_ID, TestNode}
 import dev.toothpick.runner._
 import dev.toothpick.runner.intellij.TpIntellijServiceMessageParser.TC_PREFIX
 import dev.toothpick.runner.intellij.TpIntellijServiceMessageRenderer.{render, renderStartEvent}
+import dev.toothpick.runner.intellij.TpIntellijServiceMessageReporter.{ReportQueueItem, ReportTestFailure}
+import dev.toothpick.runner.intellij.TpIntellijServiceMessages.{Attrs, Names}
 import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser.{TpScalaTestConfig, TpZTestConfig}
-import dev.toothpick.runner.intellij.{TpIntellijServiceMessageRenderer, TpIntellijTestRunArgsParser}
+import dev.toothpick.runner.intellij.{
+  TpIntellijServiceMessageRenderer,
+  TpIntellijServiceMessageReporter,
+  TpIntellijTestRunArgsParser
+}
 import dev.toothpick.runner.scalatest.TpScalaTestDiscovery
 import eu.timepit.refined.auto._
 import eu.timepit.refined.types.net.PortNumber
@@ -27,11 +34,16 @@ import zio.console.putStrLn
 import zio.stream.Stream
 import zio.{ExitCode, Task, UIO, URIO, ZIO, ZLayer, ZQueue}
 
+import scala.annotation.tailrec
+import scala.util.matching.Regex
+
 object TpRunnerApp extends zio.App {
   val RUNNER_NODE_ID = 1
 
-  final case class ReportTestFailure(message: String, details: String)
-  final case class ReportQueueItem(id: Int, failure: Option[ReportTestFailure], durationMs: Long)
+  sealed trait TestDistribution
+  final case class SuitePerProcessDistribution(suite: TpTestSuite, tests: NonEmptyList[TpTest]) extends TestDistribution
+  final case class TestPerProcessDistribution(test: TpTest) extends TestDistribution
+
   final case class ReportStreamItem(
     nodes: List[TestNode],
     allDone: Boolean,
@@ -45,6 +57,7 @@ object TpRunnerApp extends zio.App {
     serverUsePlainText: Boolean,
     logOnlyFailed: Boolean,
     duplicateCount: NonNegInt,
+    testPerProcessFileNameRegex: Regex,
     containerizer: TpRunnerContainerizerConfig
   )
 
@@ -70,6 +83,45 @@ object TpRunnerApp extends zio.App {
       event match {
         case TpTestOutputLine(content, pipe) if pipe.isStdout && content.startsWith(TC_PREFIX) => Some(content)
         case _ => None
+      }
+    }
+  }
+
+  private def createDistributions(
+    hierarchy: Map[Int, TestNode],
+    testPerProcessFileNameRegex: Regex
+  ): List[TestDistribution] = {
+    import dev.toothpick.runner.TpRunnerModels.TestNodeOps
+
+    @tailrec
+    def findSuiteParent(node: TestNode): TpTestSuite = {
+      hierarchy(node.parentId) match {
+        case group: TpTestGroup => findSuiteParent(group)
+        case suite: TpTestSuite => suite
+        case _ => ???
+      }
+    }
+
+    val suiteToTestsMap = hierarchy
+      .values
+      .collect { case test: TpTest => test }
+      .foldLeft(Map.empty[TpTestSuite, NonEmptyList[TpTest]]) { (map, test) =>
+        val suite = findSuiteParent(test)
+        map.updated(
+          suite,
+          map.get(suite) match {
+            case Some(list) => test :: list
+            case None => NonEmptyList.one(test)
+          }
+        )
+      }
+
+    suiteToTestsMap.toList.flatMap { case (suite, tests) =>
+      if (testPerProcessFileNameRegex.matches(suite.name)) {
+        tests.toList.map(TestPerProcessDistribution)
+      }
+      else {
+        SuitePerProcessDistribution(suite, tests.sortBy(_.id)) :: Nil
       }
     }
   }
@@ -138,39 +190,39 @@ object TpRunnerApp extends zio.App {
               maybeFailure match {
                 case Some(failure) =>
                   render(
-                    "testFailed",
+                    Names.TEST_FAILED,
                     Map(
-                      "nodeId" -> test.id.toString,
-                      "message" -> failure.message, // will not work with Intellij if this property is missing altogether, but empty is fine
-                      "details" -> failure.details,
-                      "error" -> "true", // error will show as red vs. warning/orange on Intellij
-                      "duration" -> durationMs.toString
+                      Attrs.NODE_ID -> test.id.toString,
+                      Attrs.MESSAGE -> failure.message, // will not work with Intellij if this property is missing altogether, but empty is fine
+                      Attrs.DETAILS -> failure.details,
+                      Attrs.ERROR -> "true", // error will show as red vs. warning/orange on Intellij
+                      Attrs.DURATION -> durationMs.toString
                     )
                   )
 
                 case None =>
                   render(
-                    "testFinished",
+                    Names.TEST_FINISHED,
                     Map(
-                      "nodeId" -> test.id.toString,
-                      "duration" -> durationMs.toString
+                      Attrs.NODE_ID -> test.id.toString,
+                      Attrs.DURATION -> durationMs.toString
                     )
                   )
               }
 
             case group: TpTestGroup =>
               render(
-                "testSuiteFinished",
+                Names.TEST_SUITE_FINISHED,
                 Map(
-                  "nodeId" -> group.id.toString
+                  Attrs.NODE_ID -> group.id.toString
                 )
               )
 
             case suite: TpTestSuite =>
               render(
-                "testSuiteFinished",
+                Names.TEST_SUITE_FINISHED,
                 Map(
-                  "nodeId" -> suite.id.toString
+                  Attrs.NODE_ID -> suite.id.toString
                 )
               )
           }
@@ -179,19 +231,17 @@ object TpRunnerApp extends zio.App {
         }
         .fork
 
-      leaves = state
-        .hierachy.values
-        .collect {
-          case n: TpTest => n
-        }
-        .toList
+      totalTestCount = state.hierachy.values.count {
+        case _: TpTest => true
+        case _ => false
+      }
 
       startLines = state
         .topDownQueue
         .map(renderStartEvent)
         .prepended(render(
-          "testCount",
-          Map("count" -> leaves.size.toString)
+          Names.TEST_COUNT,
+          Map(Attrs.COUNT -> totalTestCount.toString)
         ))
 
       _ <- ZIO.foreach_(startLines)(putStrLn(_))
@@ -205,34 +255,48 @@ object TpRunnerApp extends zio.App {
         }
       }
 
+      distributions = createDistributions(state.hierachy, appConfig.testPerProcessFileNameRegex)
+
       runResponse <- TpApiClient
         .run(TpRunRequest(
           state.hierachy,
-          runOptions = leaves
-            .map { test =>
-              test.id -> TpTestRunOptions(
-                image = containerImage,
-                args = List(
-                  "-s",
-                  test.className,
-                  nameFilterFlag,
-                  test.fullName
+          runOptions = distributions
+            .map {
+              case TestPerProcessDistribution(test) =>
+                test.id -> TpTestRunOptions(
+                  image = containerImage,
+                  args = List("-s", test.className, nameFilterFlag, test.fullName)
                 )
-              )
+
+              case SuitePerProcessDistribution(suite, tests) =>
+                suite.id -> TpTestRunOptions(
+                  image = containerImage,
+                  args = Vector("-s", suite.name) ++ tests.toList.flatMap(test => Vector(nameFilterFlag, test.fullName))
+                )
             }
             .toMap
         ))
         .mapError(_.asRuntimeException())
         .log("Send run request to Toothpick Server")
 
-      _ <- ZIO.foreachPar_(leaves) { test =>
-        TpRunnerIntellijReporter.reportTest(
-          uuid = runResponse.runId,
-          test = test,
-          reportQueue = reportQueue,
-          onlyLogIfFailed = appConfig.logOnlyFailed
-        )
-      /*.onExit { exit =>
+      _ <- ZIO.foreachPar_(distributions) {
+        case TestPerProcessDistribution(test) =>
+          TpIntellijServiceMessageReporter.reportTest(
+            uuid = runResponse.runId,
+            test = test,
+            reportQueue = reportQueue,
+            onlyLogIfFailed = appConfig.logOnlyFailed
+          )
+
+        case SuitePerProcessDistribution(suite, tests) =>
+          TpIntellijServiceMessageReporter.reportSuite(
+            uuid = runResponse.runId,
+            suite = suite,
+            tests = tests,
+            reportQueue = reportQueue,
+            onlyLogIfFailed = appConfig.logOnlyFailed
+          )
+        /*.onExit { exit =>
             val logCtx = implicitly[LogCtx].copy(level = Log.Level.Debug)
 
             TpApiClient
@@ -245,9 +309,9 @@ object TpRunnerApp extends zio.App {
       }
       _ <- reportFib.join
       _ <- putStrLn(render(
-        "testSuiteFinished",
+        Names.TEST_SUITE_FINISHED,
         Map(
-          "nodeId" -> RUNNER_NODE_ID.toString
+          Attrs.NODE_ID -> RUNNER_NODE_ID.toString
         )
       ))
     } yield ()
@@ -279,10 +343,10 @@ object TpRunnerApp extends zio.App {
               val tcRenderingPolicy = new RenderingPolicy {
                 override def render(entry: Log.Entry): String = {
                   TpIntellijServiceMessageRenderer.render(
-                    "testStdOut",
+                    Names.TEST_STD_OUT,
                     Map(
-                      "nodeId" -> RUNNER_NODE_ID.toString,
-                      "out" -> s"${renderingPolicy.render(entry)}\n"
+                      Attrs.NODE_ID -> RUNNER_NODE_ID.toString,
+                      Attrs.OUT -> s"${renderingPolicy.render(entry)}\n"
                     )
                   )
                 }
