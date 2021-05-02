@@ -136,6 +136,8 @@ jobs:
           echo "------------------------------------------------------------------"
           echo "Current user $(id --user):$(id --group)"
 
+          mkdir -p ~/.sbt ~/.cache
+
           ./cli.sh ci_build_in_shell
 
       - name: Build and push server Docker image
