@@ -135,7 +135,7 @@ jobs:
           find . -type d -name target | xargs -I{} du -sh {}
           echo "------------------------------------------------------------------"
           echo "Current user $(id --user):$(id --group)"
-          
+
           ./cli.sh ci_build_in_shell
 
       - name: Build and push server Docker image

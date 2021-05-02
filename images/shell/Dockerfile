@@ -52,7 +52,6 @@ RUN \
 
 USER "${RUNNER_UID}:${RUNNER_GID}"
 
-COPY ./.profile /home/runner/.profile
 RUN \
   echo "" >> /home/runner/.profile && \
   echo "export PATH=\"$PATH\"" >> /home/runner/.profile
