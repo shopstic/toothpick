@@ -73,6 +73,7 @@ jobs:
         with:
           path: |
             ~/.cache
+            ~/.sbt
           key: coursier-v2-${{ hashFiles('build.sbt') }}
           restore-keys: |
             coursier-v2-
