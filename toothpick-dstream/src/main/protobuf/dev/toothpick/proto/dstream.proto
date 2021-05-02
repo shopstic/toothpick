@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+import "scalapb/scalapb.proto";
+import "google/protobuf/timestamp.proto";
+
+package dev.toothpick.proto.dstream;
+
+option (scalapb.options) = {
+  no_default_values_in_constructor: true
+  import: "dev.chopsticks.kvdb.codec.protobuf_value.ProtobufMappers._"
+  preserve_unknown_fields: false
+};
+
+service TpDstream {
+  rpc Run (stream TpWorkerReport) returns (stream TpWorkerDistribution) {
+  }
+}
+
+message TpWorkerReport {
+  google.protobuf.Timestamp time = 1 [(scalapb.field).type = "java.time.Instant", (scalapb.field).no_box = true];
+  TpWorkerEvent event = 2;
+}
+
+message TpWorkerEvent {
+  oneof sealed_value {
+    TpWorkerStarted started = 2;
+    TpWorkerProgress progress = 3;
+    TpWorkerResult result = 4;
+    TpWorkerException exception = 5;
+  }
+}
+
+message TpWorkerStarted {}
+message TpWorkerException {
+  string message = 1;
+}
+
+message TpWorkerProgress {
+  int32 logLineCount = 1;
+}
+
+message TpWorkerResult {
+  int32 exitCode = 1;
+}
+
+message TpWorkerDistribution {
+  string runId = 1 [(scalapb.field).type = "java.util.UUID"];
+  int32 testId = 2 ;
+  string image = 3;
+  repeated string args = 4;
+}

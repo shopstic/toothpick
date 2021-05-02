@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+import "google/protobuf/wrappers.proto";
+
+package dev.toothpick.proto.api;
+
+message TpTestNode {
+  oneof sealed_value {
+    TpTest test = 1;
+    TpTestGroup group = 2;
+    TpTestSuite suite = 3;
+  }
+}
+
+message TpTestLocation {
+  oneof sealed_value_optional {
+    TpTestClassLocation classLocation = 1;
+    TpTestFileLocation fileLocation = 2;
+  }
+}
+
+message TpTestClassLocation {
+  string class_name = 1;
+  string file_name = 2;
+  int32 line_number = 3;
+}
+
+message TpTestFileLocation {
+  string file_path = 1;
+  int32 line_number = 2;
+}
+
+message TpTest {
+  string full_name = 1;
+  string name = 2;
+  int32 id = 3;
+  int32 parent_id = 4;
+  string class_name = 5;
+  TpTestLocation location = 6;
+}
+
+message TpTestGroup {
+  string name = 1;
+  int32 id = 2;
+  int32 parent_id = 3;
+  google.protobuf.StringValue child_name_prefix = 4;
+  TpTestLocation location = 5;
+}
+
+message TpTestSuite {
+  string name = 1;
+  int32 id = 2;
+  int32 parent_id = 3;
+  int32 duplicate_seq = 4;
+}

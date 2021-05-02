@@ -1,0 +1,46 @@
+package dev.toothpick.exp
+
+import dev.toothpick.proto.api.RunRequest
+import dev.toothpick.proto.api.ZioApi.TpApiClient
+import io.grpc.Status
+import io.grpc.netty.NettyChannelBuilder
+import scalapb.zio_grpc.ZManagedChannel
+import zio.console.{putStrLn, Console}
+import zio.magic.ZioProvideMagicOps
+import zio.{ExitCode, URIO, ZEnv, ZIO, ZLayer}
+
+object GrpcClientTest extends zio.App {
+
+  private def app: ZIO[Console with TpApiClient, Status, Unit] = {
+    for {
+      res <- TpApiClient.run(RunRequest(
+        image = "cr.shopstic.com/barracuda-sms-test:latest",
+        args = List(
+          "/opt/docker/bin/barracuda-sms-test",
+          "-J-Dlog.level=info",
+          "-main",
+          "org.scalatest.tools.Runner",
+          "-o",
+          "-s",
+          "${suiteClassName}",
+          "-t",
+          "${testName}"
+        )
+      ))
+      _ <- putStrLn(res.toProtoString)
+    } yield ()
+  }
+
+  override def run(args: List[String]): URIO[ZEnv, ExitCode] = {
+    val clientLayer: ZLayer[Any, Throwable, TpApiClient] = TpApiClient.live(
+      ZManagedChannel[Any](
+        NettyChannelBuilder.forAddress("localhost", 8080).usePlaintext()
+      )
+    )
+
+    app
+      .as(ExitCode(0))
+      .injectSome[ZEnv](clientLayer)
+      .catchAll(e => putStrLn(e.toString).as(ExitCode(1)))
+  }
+}

@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+import "scalapb/scalapb.proto";
+
+package dev.toothpick.proto.api;
+
+option (scalapb.options) = {
+  scope: PACKAGE
+  flat_package: true
+  no_default_values_in_constructor: true
+  import: "dev.chopsticks.kvdb.codec.protobuf_value.ProtobufMappers._"
+  import: "dev.toothpick.proto.Mappers._"
+  preserve_unknown_fields: false
+};

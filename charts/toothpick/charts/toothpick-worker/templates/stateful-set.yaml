@@ -1,0 +1,251 @@
+{{ $fullName := include "toothpick-worker.fullname" . }}
+{{- $configHash := (include (print $.Template.BasePath "/app-config-secret.yaml") . ) | sha256sum -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "toothpick-worker.fullname" . }}
+  labels:
+    {{- include "toothpick-worker.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  serviceName: "toothpick-worker"
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      {{- include "toothpick-worker.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        "shopstic.com/app-config-hash": {{ $configHash }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "toothpick-worker.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "toothpick-worker.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: dind
+          securityContext:
+            privileged: true
+          image: docker.io/shopstic/dind:20.10.6
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: /certs
+          volumeMounts:
+            - name: dind-data
+              mountPath: "/var/lib/docker"
+            - name: dind-certs-client
+              mountPath: "/certs/client"
+            - name: fdb-cluster-file
+              mountPath: /mnt/fdb
+            {{- with .Values.dind.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            exec:
+              command:
+                - docker
+                - info
+
+          readinessProbe:
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            exec:
+              command:
+                - docker
+                - info
+
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.global.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          ports:
+            {{- range $key, $val := .Values.ports }}
+            - name: {{ kebabcase $key }}
+              containerPort: {{ $val.container }}
+              protocol: TCP
+            {{- end }}
+            {{- if .Values.jmx.enabled }}
+            - name: jmx
+              containerPort: {{ .Values.jmx.port }}
+              protocol: TCP
+            {{- end }}
+          livenessProbe:
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            successThreshold: 1
+            exec:
+              command:
+                - /k8s-probe-tools/prom2jq
+                - "http://localhost:{{ .Values.ports.appMetrics.container }}/metrics"
+                - -e
+                - |
+                  .[] | select(.name=="tp_dstream_worker_status" and ((.metrics | length) > 0))
+
+          readinessProbe:
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            successThreshold: 1
+            exec:
+              command:
+                - /k8s-probe-tools/prom2jq
+                - "http://localhost:{{ .Values.ports.appMetrics.container }}/metrics"
+                - -e
+                - |
+                  .[] | select(.name=="tp_dstream_worker_status" and ((.metrics | length) > 0))
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          args:
+            - /opt/docker/bin/tp-worker-app
+            - "-J-server"
+            - "-J-XshowSettings:system"
+            - "-J-javaagent:/mnt/prometheus-jmx-exporter-agent/jmx_prometheus_javaagent.jar={{ .Values.ports.jmxMetrics.container }}:/mnt/prometheus-jmx-exporter-config/config.yaml"
+            {{- if .Values.yourkitAgent.enabled }}
+            - "-J-agentpath:/mnt/yourkit-agent/libyjpagent.so=port={{ .Values.yourkitAgent.port }},listen=all,logdir=/dev/stderr"
+            {{- end }}
+            {{- if .Values.jmx.enabled }}
+            - "-Dcom.sun.management.jmxremote"
+            - "-Dcom.sun.management.jmxremote.port={{ .Values.jmx.port }}"
+            - "-Dcom.sun.management.jmxremote.rmi.port={{ .Values.jmx.port }}"
+            - "-Dcom.sun.management.jmxremote.host=0.0.0.0"
+            - "-Djava.rmi.server.hostname=127.0.0.1"
+            - "-Dcom.sun.management.jmxremote.local.only=false"
+            - "-Dcom.sun.management.jmxremote.ssl=false"
+            - "-Dcom.sun.management.jmxremote.authenticate=false"
+            {{- end }}
+            - "-Dconfig.entry=/mnt/app-config/app.conf"
+            - "-Dlog.level=INFO"
+            {{- with .Values.args }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            {{- if .Values.yourkitAgent.enabled }}
+            - name: yourkit-agent
+              mountPath: /mnt/yourkit-agent
+            {{- end }}
+            - name: prometheus-jmx-exporter-agent
+              mountPath: /mnt/prometheus-jmx-exporter-agent
+            - name: prometheus-jmx-exporter-config
+              mountPath: /mnt/prometheus-jmx-exporter-config
+            - name: app-config
+              mountPath: /mnt/app-config
+            - name: fdb-cluster-file
+              mountPath: /mnt/fdb/cluster.file
+              subPath: cluster.file
+            - mountPath: /k8s-probe-tools
+              name: probe-tools
+            - name: dind-certs-client
+              mountPath: /certs/client
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: FDB_CLUSTER_FILE
+              value: /mnt/fdb/cluster.file
+            - name: DOCKER_HOST
+              value: tcp://localhost:2376
+            - name: DOCKER_TLS_VERIFY
+              value: "true"
+            - name: DOCKER_CERT_PATH
+              value: /certs/client
+      initContainers:
+        - name: k8s-probe-tools
+          image: shopstic/k8s-probe-tools:1.1.2
+          volumeMounts:
+            - mountPath: /k8s-probe-tools
+              name: probe-tools
+        {{- with .Values.yourkitAgent.image }}
+        - name: yourkit-agent
+          image: "{{ .repository }}:{{ .tag }}"
+          imagePullPolicy: {{ .pullPolicy }}
+          volumeMounts:
+            - name: yourkit-agent
+              mountPath: "/target"
+        {{- end }}
+        {{- with .Values.prometheusJmxExporterAgent.image }}
+        - name: prometheus-jmx-exporter-agent
+          image: "{{ .repository }}:{{ .tag }}"
+          imagePullPolicy: {{ .pullPolicy }}
+          volumeMounts:
+            - name: prometheus-jmx-exporter-agent
+              mountPath: "/target"
+        {{- end }}
+      volumes:
+        - name: yourkit-agent
+          emptyDir: {}
+        - name: prometheus-jmx-exporter-agent
+          emptyDir: {}
+        - name: prometheus-jmx-exporter-config
+          secret:
+            secretName: {{ $fullName }}-prometheus-jmx-exporter-config
+        - name: app-config
+          secret:
+            secretName: {{ $fullName }}-app-config
+        - name: fdb-cluster-file
+          configMap:
+            name: {{ required "global.fdbConnectionStringConfigMap.name is required" .Values.global.fdbConnectionStringConfigMap.name | quote }}
+            items:
+              - key: {{ .Values.global.fdbConnectionStringConfigMap.key | quote }}
+                path: cluster.file
+        - name: probe-tools
+          emptyDir: {}
+        - name: dind-certs-client
+          emptyDir: {}
+        {{- with .Values.dind.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- else }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app.kubernetes.io/instance"
+                    operator: In
+                    values:
+                      - {{ .Release.Name }}
+                  - key: "app.kubernetes.io/name"
+                    operator: In
+                    values:
+                      - {{ include "toothpick-worker.name" . }}
+              topologyKey: kubernetes.io/hostname
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: dind-data
+      spec:
+        {{ toYaml .Values.dind.dataVolumeClaimSpec | nindent 8 }}

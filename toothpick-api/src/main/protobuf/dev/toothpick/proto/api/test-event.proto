@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package dev.toothpick.proto.api;
+
+message TpTestEvent {
+  oneof sealed_value {
+    TpTestStarted started = 2;
+    TpTestOutputLine outputLine = 3;
+    TpTestResult result = 4;
+    TpTestAborted aborted = 5;
+    TpTestException exception = 6;
+  }
+}
+
+message TpTestStarted {
+  string workerId = 2;
+  string workerNode = 23;
+}
+
+message TpTestOutputLine {
+  enum Pipe {
+    STDOUT = 0;
+    STDERR = 1;
+  }
+  string content = 1;
+  Pipe pipe = 3;
+}
+
+message TpTestResult {
+  int32 exitCode = 1;
+}
+
+message TpTestAborted {}
+
+message TpTestException {
+  string message = 1;
+}

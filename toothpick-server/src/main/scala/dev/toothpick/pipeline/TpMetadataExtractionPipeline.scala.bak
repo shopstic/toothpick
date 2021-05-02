@@ -1,0 +1,248 @@
+package dev.toothpick.pipeline
+
+import com.apple.foundationdb.tuple.Versionstamp
+import com.github.plokhotnyuk.jsoniter_scala.core.JsonValueCodec
+import dev.toothpick.proto.dstream.TestDistribution
+import dev.toothpick.proto.state._
+import dev.toothpick.state.TpState
+import dev.toothpick.state.TpStateDef.RunEventKey
+import com.softwaremill.quicklens._
+import dev.chopsticks.fp.ZRunnable
+import dev.chopsticks.fp.akka_env.AkkaEnv
+import dev.chopsticks.fp.iz_logging.IzLogging
+import dev.chopsticks.fp.zio_ext.{MeasuredLogging, ZIOExtensions}
+import dev.chopsticks.stream.ZAkkaSource.SourceToZAkkaSource
+import eu.timepit.refined.auto._
+import eu.timepit.refined.types.numeric.PosInt
+import eu.timepit.refined.types.string.NonEmptyString
+import scalapb.json4s.JsonFormat
+import zio.blocking.Blocking
+import zio.process.{Command, CommandError}
+import zio.{ExitCode, RIO, Task, UIO, URIO, URLayer, ZIO}
+
+import java.util.concurrent.atomic.AtomicInteger
+import scala.util.control.NoStackTrace
+
+object TpMetadataExtractionPipeline {
+  final case class MetadataExtractionConfig(
+    parallelism: PosInt,
+    skopeoPath: NonEmptyString,
+    podmanPath: NonEmptyString
+  )
+
+  trait Service {
+    def run(config: MetadataExtractionConfig): Task[Unit]
+  }
+
+  sealed trait CommandFailure
+  final case class CommandFailureWithError(error: CommandError) extends CommandFailure {
+    override def toString: String = error.toString
+  }
+  final case class CommandFailureWithExitCode(exitCode: Int, stdout: String, stderr: String) extends CommandFailure {
+    override def toString: String =
+      s"""
+        |exitCode=$exitCode
+        |stdout ======================================================
+        |${if (stdout.isEmpty) "<empty>" else stdout}
+        |stderr ======================================================
+        |${if (stderr.isEmpty) "<empty>" else stderr}
+        |""".stripMargin
+  }
+
+  final case class SkopeoManifestPayload(name: String, digest: String)
+  object SkopeoManifestPayload {
+    implicit val jsonCodec: JsonValueCodec[SkopeoManifestPayload] = {
+      import com.github.plokhotnyuk.jsoniter_scala.macros._
+      JsonCodecMaker.make[SkopeoManifestPayload](CodecMakerConfig.withFieldNameMapper(JsonCodecMaker.EnforcePascalCase))
+    }
+  }
+
+  private def exec(command: String, args: Seq[String]): URIO[Blocking, Either[CommandFailure, String]] = {
+    val task = for {
+      process <- Command(command, args: _*).run
+      out <- process.stdout.string zipPar process.stderr.string
+      (stdout, stderr) = out
+      exitCode <- process.exitCode
+    } yield {
+      exitCode match {
+        case ExitCode(0) =>
+          Right(stdout)
+        case ExitCode(code) =>
+          Left(CommandFailureWithExitCode(code, stdout, stderr))
+      }
+    }
+
+    task.catchAll { error =>
+      ZIO.left(CommandFailureWithError(error))
+    }
+  }
+
+  private def fetchImageDigest(skopeoPath: NonEmptyString, image: String): URIO[Blocking, RunEvent] = {
+    for {
+      ret <- exec(skopeoPath, List("inspect", s"docker://$image"))
+      event <- ret match {
+        case Left(failure) =>
+          ZIO.succeed(RunImageDigestFetchFailed(failure.toString))
+        case Right(stdout) =>
+          import com.github.plokhotnyuk.jsoniter_scala.core._
+          Task(readFromString[SkopeoManifestPayload](stdout))
+            .map(p => RunImageDigestFetched(s"${p.name}@${p.digest}"))
+            .catchAll(e => ZIO.succeed(RunImageDigestFetchFailed(e.toString)))
+      }
+    } yield event
+  }
+
+  private def pullImage(podmanPath: NonEmptyString, image: String): URIO[Blocking, RunEvent] = {
+    exec(podmanPath, List("pull", "-q", image))
+      .map {
+        case Left(failure) =>
+          RunImagePullFailed(failure.toString)
+        case Right(stdout) =>
+          val imageId = stdout.trim
+
+          if (imageId.isEmpty) {
+            RunImagePullFailed(s"`podman pull $image` stdout is empty!")
+          }
+          else {
+            RunImagePulled(imageId)
+          }
+      }
+  }
+
+  private def extractBuildMeta(
+    podmanPath: NonEmptyString,
+    imageId: String,
+    args: Seq[String]
+  ): URIO[Blocking, RunEvent] = {
+    exec(podmanPath, Vector("run", "-i", "--rm", imageId) ++ args)
+      .flatMap {
+        case Left(failure) =>
+          ZIO.succeed(RunMetaExtractionFailed(failure.toString))
+        case Right(stdout) =>
+          Task(JsonFormat.fromJsonString[RunMetaExtracted](stdout))
+            .map { event =>
+              val idSeed = new AtomicInteger(0)
+              event.modify(_.suites.each.tests.each.id).using(_ => Some(idSeed.incrementAndGet()))
+            }
+            .catchAll { e =>
+              ZIO.succeed(RunMetaExtractionFailed(e.toString))
+            }
+      }
+  }
+
+  private object RunEarlyFailure extends RuntimeException with NoStackTrace
+
+  private def replaceTestArgs(args: Seq[String], suite: SuiteMeta, test: TestMeta) = {
+    args
+      .map(_
+        .replaceAll("\\$\\{suiteClassName}", suite.className)
+        .replaceAll("\\$\\{testName}", test.name))
+  }
+
+  private def run(
+    config: MetadataExtractionConfig,
+    runQueueItem: RunQueueItem
+  ): RIO[MeasuredLogging with Blocking with TpState, Unit] = {
+    for {
+      zlogger <- IzLogging.zioLogger
+      state <- TpState.get
+      runEventsKs = state.keyspaces.runEvents
+      runEventsCf = state.api.columnFamily(runEventsKs)
+      runUuid = runQueueItem.uuid
+      image = runQueueItem.request.image
+      extractMetaArgs = runQueueItem.request.extractMetaArgs
+      runTestArgs = runQueueItem.request.runTestArgs
+      _ <- state.api.transact(
+        state.api.transactionBuilder
+          .deletePrefix(runEventsKs, runUuid)
+          .put(runEventsKs, RunEventKey(runUuid, Versionstamp.incomplete()), RunStarted.defaultInstance)
+          .result
+      )
+      _ <- fetchImageDigest(config.skopeoPath, image)
+        .tap(runEventsCf.putTask(RunEventKey(runUuid, Versionstamp.incomplete()), _))
+        .logResult(s"fetchImageDigest image=$image", _.asMessage.toProtoString)
+        .collectM(RunEarlyFailure) {
+          case RunImageDigestFetched(imageWithDigest) =>
+            pullImage(config.podmanPath, imageWithDigest)
+              .tap(runEventsCf.putTask(RunEventKey(runUuid, Versionstamp.incomplete()), _))
+              .logResult(s"pullImage imageWithDigest=$imageWithDigest", _.asMessage.toProtoString)
+              .collectM(RunEarlyFailure) {
+                case RunImagePulled(imageId) =>
+                  extractBuildMeta(config.podmanPath, imageId, extractMetaArgs)
+                    .logResult(
+                      s"extractBuildMeta imageId=$imageId args=$extractMetaArgs",
+                      {
+                        case RunMetaExtracted(suites) => s"extracted ${suites.size} suites"
+                        case e => e.asMessage.toProtoString
+                      }
+                    )
+              }
+              .tap(runEventsCf.putTask(RunEventKey(runUuid, Versionstamp.incomplete()), _))
+              .collectM(RunEarlyFailure) {
+                case RunMetaExtracted(suites) =>
+                  UIO {
+                    suites
+                      .foldLeft(state.api.transactionBuilder) { (tx, suite) =>
+                        suite.tests.foldLeft(tx) { (t, test) =>
+                          t.put(
+                            column = state.keyspaces.testDistributionQueue,
+                            key = Versionstamp.incomplete(t.nextVersion),
+                            value = TestDistribution(
+                              runUuid = runUuid,
+                              testId = test.id.getOrElse(
+                                throw new IllegalStateException(
+                                  "Test ID is supposed to already be assigned at this point"
+                                )
+                              ),
+                              image = imageWithDigest,
+                              args = replaceTestArgs(runTestArgs, suite, test)
+                            )
+                          )
+                        }
+                      }
+                      .result
+                  }
+              }
+              .flatMap(state.api.transact)
+        }
+        .tap(persisted => zlogger.info(s"Queued ${persisted.size} test distribution items"))
+        .unit
+        .catchSome {
+          case RunEarlyFailure => ZIO.unit
+        }
+    } yield ()
+  }
+
+  def get: URIO[TpMetadataExtractionPipeline, Service] = ZIO.access[TpMetadataExtractionPipeline](_.get)
+
+  def live: URLayer[MeasuredLogging with AkkaEnv with Blocking with TpState, TpMetadataExtractionPipeline] = {
+    val runnable = ZRunnable { config: MetadataExtractionConfig =>
+      for {
+        state <- TpState.get
+        _ <- state.api.columnFamily(state.keyspaces.runQueue)
+          .tailSource
+          .via {
+            import dev.chopsticks.kvdb.codec.KeyTransformer.identityTransformer
+            state.api.columnFamily(state.keyspaces.runMeta).batchGetByKeysFlow(_._2)
+          }
+          .toZAkkaSource
+          .interruptibleMapAsyncUnordered(config.parallelism) { case ((queueVersionstamp, _), maybeRunQueueItem) =>
+            maybeRunQueueItem match {
+              case Some(runQueueItem) =>
+                run(config = config, runQueueItem = runQueueItem)
+                  .log(s"uuid=${runQueueItem.uuid} image=${runQueueItem.request.image}")
+                  .as(queueVersionstamp)
+              case None =>
+                ZIO.succeed(queueVersionstamp)
+            }
+          }
+          .interruptibleMapAsyncUnordered(config.parallelism) { queueVersionstamp =>
+            state.api.columnFamily(state.keyspaces.runQueue).deleteTask(queueVersionstamp)
+          }
+          .interruptibleRunIgnore()
+      } yield ()
+    }
+
+    runnable.toLayer[Service](fn => (config: MetadataExtractionConfig) => fn(config))
+  }
+}

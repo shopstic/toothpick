@@ -1,0 +1,31 @@
+{{- if .Values.ingress.enabled -}}
+{{- $fullName := include "toothpick-master.fullname" . -}}
+{{- $svcPort := .Values.ports.grpcApi.public -}}
+{{- $hostnames := (required "ingress.hostnames must not be a non-empty array" .Values.ingress.hostnames) -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}
+  labels:
+    {{- include "toothpick-master.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  tls:
+    - hosts:
+        {{- range $hostnames }}
+        - {{ . | quote }}
+        {{- end }}
+  rules:
+    {{- range $hostnames }}
+    - host: {{ . | quote }}
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: {{ $fullName }}
+              servicePort: {{ $svcPort }}
+    {{- end }}
+{{- end }}

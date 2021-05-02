@@ -1,0 +1,53 @@
+FROM shopstic/bin-dumb-init:1.2.2 as bin-dumb-init
+FROM shopstic/bin-helm:3.5.3 as bin-helm
+FROM shopstic/bin-yq:4.6.3 as bin-yq
+FROM shopstic/curl-tar-unzip:1.0.1 as sbt
+
+ENV SBT_VERSION "1.5.0"
+
+RUN \
+  mkdir /sbt && \
+  cd /sbt && \
+  curl -Lo sbt.zip https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.zip && \
+  unzip sbt.zip && rm -Rf sbt.zip && rm -Rf sbt/lib && mv /sbt/sbt/* /sbt/ && rm -Rf sbt && \
+  chmod a+x /sbt/bin/sbt
+
+FROM shopstic/curl-tar-unzip:1.0.1 as fdb
+
+ENV FDB_VERSION "6.2.30"
+
+RUN \
+  curl -Lko /usr/bin/fdb-clients.deb https://www.foundationdb.org/downloads/${FDB_VERSION}/ubuntu/installers/foundationdb-clients_${FDB_VERSION}-1_amd64.deb && \
+  curl -Lko /usr/bin/fdb-server.deb https://www.foundationdb.org/downloads/${FDB_VERSION}/ubuntu/installers/foundationdb-server_${FDB_VERSION}-1_amd64.deb
+
+FROM openjdk:11.0.10-buster
+
+ENV PATH="$PATH:/sbt/bin"
+
+COPY --from=bin-dumb-init / /
+COPY --from=bin-helm / /
+COPY --from=bin-yq / /
+COPY --from=sbt /sbt /sbt
+COPY --from=fdb /usr/bin/fdb-clients.deb /usr/bin/fdb-clients.deb
+COPY --from=fdb /usr/bin/fdb-server.deb /usr/bin/fdb-server.deb
+
+ENV SCALA_VERSION=2.13.5
+
+RUN \
+  mkdir ~/temp && \
+  cd ~/temp && \
+  mkdir -p ./src/main/scala && \
+  touch ./src/main/scala/temp.scala && \
+  sbt "set scalaVersion := \"${SCALA_VERSION}\"" compile && \
+  rm -Rf ~/temp && \
+  apt-get install /usr/bin/fdb-clients.deb -y && \
+  apt-get install /usr/bin/fdb-server.deb -y && \
+  rm -f /usr/bin/fdb-clients.deb && \
+  rm -f /usr/bin/fdb-server.deb
+
+COPY ./.profile /root/.profile
+RUN \
+  echo "" >> /root/.profile && \
+  echo "export PATH=\"$PATH\"" >> /root/.profile
+
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]

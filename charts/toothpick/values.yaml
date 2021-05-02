@@ -1,0 +1,14 @@
+global:
+  image:
+    repository: shopstic/toothpick-server
+    pullPolicy: IfNotPresent
+    tag: ""
+
+  imagePullSecrets: []
+
+  fdbConnectionStringConfigMap:
+    name: ""
+    key: connectionString
+
+  serviceMonitor:
+    enabled: true

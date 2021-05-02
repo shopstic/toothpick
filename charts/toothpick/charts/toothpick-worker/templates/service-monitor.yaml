@@ -1,0 +1,28 @@
+{{- if .Values.global.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "toothpick-worker.fullname" . }}
+  labels:
+    {{- include "toothpick-worker.labels" . | nindent 4 }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      {{- include "toothpick-worker.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http-app-metrics
+      honorLabels: true
+      path: /metrics
+      scheme: http
+      interval: 2s
+      scrapeTimeout: 2s
+    - port: http-jmx-metrics
+      honorLabels: true
+      path: /
+      scheme: http
+      interval: 2s
+      scrapeTimeout: 2s
+{{- end }}

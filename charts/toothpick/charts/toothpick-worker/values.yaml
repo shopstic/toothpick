@@ -1,0 +1,87 @@
+replicaCount: 1
+
+global:
+  image:
+    repository: shopstic/toothpick-server
+    pullPolicy: IfNotPresent
+    tag: ""
+
+  imagePullSecrets: []
+
+  fdbConnectionStringConfigMap:
+    name: ""
+    key: connectionString
+
+  serviceMonitor:
+    enabled: true
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext:
+  privileged: true
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+appConfig: {}
+
+command: []
+
+args: []
+
+jmx:
+  enabled: false
+  port: 9097
+
+yourkitAgent:
+  enabled: false
+  port: 9098
+  image:
+    repository: shopstic/yourkit-agent
+    tag: 2019.8.0
+    pullPolicy: IfNotPresent
+
+prometheusJmxExporterAgent:
+  image:
+    repository: shopstic/prometheus-jmx-exporter
+    tag: 0.12.0
+    pullPolicy: IfNotPresent
+
+ports:
+  appMetrics:
+    protocol: http
+    container: 9091
+    public: 9095
+  jmxMetrics:
+    protocol: http
+    container: 9096
+    public: 9096
+
+service:
+  type: ClusterIP
+  annotations: {}
+
+dind:
+  dataVolumeClaimSpec:
+    accessModes: ["ReadWriteOnce"]
+    storageClassName: "local-path"
+    resources:
+      requests:
+        storage: 20Gi
+  extraVolumes: []
+  extraVolumeMounts: []
