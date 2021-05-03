@@ -45,6 +45,10 @@ lazy val server = Build
     publish / skip := true,
     dockerExposedPorts := Seq(8080, 8081),
     dockerEntrypoint := Seq("/usr/bin/dumb-init", "--"),
+    Docker / daemonUserUid := Some("1001"),
+    Docker / daemonGroupGid := Some("1001"),
+    Docker / daemonUser := "app",
+    Docker / daemonGroup := "app",
     libraryDependencies ++= chopsticksDstreamDeps ++ chopsticksZioGrpcCommonDeps ++ chopsticksKvdbFdbDeps ++
       chopsticksKvdbCodecProtobufValueDeps ++ zioProcessDeps ++ zioInteropReactivestreamsDeps ++
       scalapbJson4sDeps ++ quicklensDeps ++ pureconfigEnumeratumDeps ++ zioDeps ++ jsoniterDeps
