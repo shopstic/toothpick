@@ -59,7 +59,7 @@ lazy val runner = Build
   .dependsOn(api)
   .enablePlugins(JavaAppPackaging)
   .settings(
-    Compile / mainClass := Some("dev.toothpick.app.TpRunnerApp"),
+    Compile / mainClass := Some("dev.toothpick.app.TpIntellijRunnerApp"),
     Compile / discoveredMainClasses := Seq.empty,
     libraryDependencies ++= jibDeps ++ betterFilesDeps ++ cytodynamicsNucleusDeps ++
       quicklensDeps ++ fastparseDeps ++ pprintDeps ++ zioDeps ++ jsoniterDeps.map(m =>

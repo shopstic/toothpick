@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DIR_PATH="$(dirname "$(realpath "$0")")"
-RUN_ARGS=()
+RUN_ARGS=("-main"  "dev.toothpick.app.TpIntellijRunnerApp")
 
 CONFIG_ENTRY_FILE="$PWD/.toothpick.conf"
 

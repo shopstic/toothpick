@@ -141,6 +141,7 @@ object TpExecutionPipeline {
             elapsed = java.time.Duration.between(time, now)
             delay = config.imagePullCacheTtl.toJava.minus(elapsed)
             _ <- tmap.delete(image).commit.delay(delay)
+            _ <- IzLogging.zioLogger.flatMap(_.info(s"Remove image pull cache $image"))
           } yield ()
         }
         .runDrain

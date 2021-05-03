@@ -2,6 +2,7 @@ package dev.toothpick.runner.app
 
 import dev.chopsticks.fp.config.{HoconConfig, TypedConfig}
 import dev.chopsticks.fp.iz_logging.{IzLogging, IzLoggingRouter}
+import dev.toothpick.app.TpIntellijRunnerApp
 import logstage.Log
 import zio.{Cause, ZLayer}
 import zio.magic._

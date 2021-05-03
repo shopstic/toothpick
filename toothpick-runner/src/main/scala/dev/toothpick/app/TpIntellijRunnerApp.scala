@@ -1,9 +1,9 @@
-package dev.toothpick.runner.app
+package dev.toothpick.app
 
 import dev.chopsticks.fp.config.{HoconConfig, TypedConfig}
 import dev.chopsticks.fp.iz_logging.{IzLogTemplates, IzLogging, IzLoggingRouter}
 import dev.chopsticks.fp.zio_ext.ZIOExtensions
-import dev.toothpick.proto.api._
+import dev.toothpick.proto.api.TpTestSuite
 import dev.toothpick.reporter.{TpIntellijReporter, TpReporterConfig}
 import dev.toothpick.runner.TpRunner.TpRunnerConfig
 import dev.toothpick.runner.TpRunnerApiClient.TpRunnerApiClientConfig
@@ -35,17 +35,7 @@ object TpIntellijRunnerApp extends zio.App {
     }
   }
 
-  private def app(args: List[String]) = {
-    for {
-      context <- Task(TpIntellijTestRunArgsParser.parse(args))
-      appConfig <- TypedConfig.get[AppConfig]
-      runnerState <- TpRunner.run(context, appConfig.runner)
-      _ <- TpIntellijReporter.report(runnerState, appConfig.reporter)
-    } yield ()
-  }
-
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
-
     val apiClientLayer = (for {
       appConfig <- TypedConfig.get[AppConfig].toManaged_
       client <- TpRunnerApiClient.managed(appConfig.apiClient)
@@ -93,9 +83,16 @@ object TpIntellijRunnerApp extends zio.App {
       )
     ))
 
+    val main = for {
+      context <- Task(TpIntellijTestRunArgsParser.parse(args))
+      appConfig <- TypedConfig.get[AppConfig]
+      runnerState <- TpRunner.run(context, appConfig.runner)
+      _ <- TpIntellijReporter.report(runnerState, appConfig.reporter)
+    } yield ()
+
     import zio.magic._
 
-    val start = app(args)
+    val app = main
       .interruptAllChildrenPar
       .injectSome[zio.ZEnv](
         HoconConfig.live(Some(this.getClass)),
@@ -106,6 +103,6 @@ object TpIntellijRunnerApp extends zio.App {
       )
       .orDie
 
-    (before *> start *> after).as(ExitCode(0))
+    (before *> app *> after).as(ExitCode(0))
   }
 }
