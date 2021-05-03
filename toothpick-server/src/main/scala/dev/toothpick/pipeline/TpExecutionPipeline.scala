@@ -8,7 +8,7 @@ import dev.chopsticks.fp.ZRunnable
 import dev.chopsticks.fp.akka_env.AkkaEnv
 import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.fp.zio_ext.ZIOExtensions
-import dev.toothpick.proto.api.{TpRunTestId, TpTestOutputLine, TpTestReport, TpTestStarted}
+import dev.toothpick.proto.api._
 import dev.toothpick.proto.dstream._
 import dev.toothpick.state.TpState
 import dev.toothpick.state.TpStateDef.RunEventKey
@@ -31,8 +31,8 @@ object TpExecutionPipeline {
   final case class TestExecutionConfig(
     worker: DstreamWorkerConfig,
     retry: DstreamWorkerRetryConfig,
-    podmanPath: NonEmptyString,
-    podmanRunArgs: Vector[NonEmptyString]
+    dockerPath: NonEmptyString,
+    dockerRunArgs: Vector[NonEmptyString]
   )
 
   trait Service {
@@ -106,9 +106,9 @@ object TpExecutionPipeline {
   final case class ImagePullCommandError(error: CommandError) extends ImagePullFailure
   final case class ImagePullFailureWithExitCode(exitCode: Int, stderr: String) extends ImagePullFailure
 
-  private def pullImage(podmanPath: NonEmptyString, image: String): ZIO[Blocking, ImagePullFailure, String] = {
+  private def pullImage(dockerPath: NonEmptyString, image: String): ZIO[Blocking, ImagePullFailure, String] = {
     val task = for {
-      process <- Command(podmanPath, "pull", "-q", image).run
+      process <- Command(dockerPath, "pull", "-q", image).run
       ret <- process.stdout.string zipPar process.stderr.string zipPar process.exitCode
     } yield ret
 
@@ -133,7 +133,7 @@ object TpExecutionPipeline {
       tmap <- TMap.make[String, TPromise[ImagePullFailure, String]]().commit
       nodeName = sys.env.get("NODE_NAME").orElse(sys.env.get("HOSTNAME")).getOrElse("unknown")
 
-      pullAssignmentImage = (image: String) => {
+      pullAssignmentImage = (image: String, onStarted: Task[Unit]) => {
         for {
           pullState <- STM.atomically {
             for {
@@ -150,7 +150,7 @@ object TpExecutionPipeline {
             } yield ret
           }
           (pulledPromise, hasBeenPulled) = pullState
-          _ <- pullImage(config.podmanPath, image)
+          _ <- onStarted *> pullImage(config.dockerPath, image)
             .foldM(
               failure => STM.atomically(pulledPromise.fail(failure) *> tmap.delete(image)),
               imageId => STM.atomically(pulledPromise.succeed(imageId) *> tmap.delete(image))
@@ -167,7 +167,7 @@ object TpExecutionPipeline {
           runtime <- ZIO.runtime[Blocking]
           dispatcher <- AkkaEnv.dispatcher
           logger <- IzLogging.logger
-          process <- Command(config.podmanPath, args: _*).run
+          process <- Command(config.dockerPath, args: _*).run
         } yield {
           import zio.interop.reactivestreams._
 
@@ -226,35 +226,43 @@ object TpExecutionPipeline {
         .run(config.worker) { (workerId, assignment) =>
           val runTestId = TpRunTestId(assignment.runId, assignment.testId)
 
-          TpState
-            .get
-            .flatMap { state =>
-              state.api.columnFamily(state.keyspaces.reports).putTask(
-                RunEventKey(runTestId, Versionstamp.incomplete()),
-                TpTestReport(Instant.now, TpTestStarted(workerId.toString, nodeName))
-              )
-            }
-            .zipRight {
-              pullAssignmentImage(assignment.image)
-                .foldM(
-                  pullFailure =>
-                    ZIO.succeed(Source.single(
-                      TpWorkerReport(
-                        Instant.now,
-                        TpWorkerException(
-                          s"Failed fulling image '${assignment.image}', reason: ${pullFailure.toString}"
-                        )
-                      )
-                    )),
-                  imageId =>
-                    runAssignment(runTestId, (config.podmanRunArgs.map(_.value) :+ imageId) ++ assignment.args)
-                      .catchAll(commandError =>
-                        ZIO.succeed(Source.single(
-                          TpWorkerReport(Instant.now, TpWorkerException(s"Run error: ${commandError.toString}"))
-                        ))
-                      )
+          for {
+            state <- TpState.get
+            reportsKeyspace = state.api.columnFamily(state.keyspaces.reports)
+            _ <- reportsKeyspace.putTask(
+              RunEventKey(runTestId, Versionstamp.incomplete()),
+              TpTestReport(Instant.now, TpTestStarted(workerId.toString, nodeName))
+            )
+            source <- pullAssignmentImage(
+              assignment.image, {
+                reportsKeyspace.putTask(
+                  RunEventKey(runTestId, Versionstamp.incomplete()),
+                  TpTestReport(
+                    Instant.now,
+                    TpImagePullingStarted(workerNode = workerId.toString, imageRef = assignment.image)
+                  )
                 )
-            }
+              }
+            )
+              .foldM(
+                pullFailure =>
+                  ZIO.succeed(Source.single(
+                    TpWorkerReport(
+                      Instant.now,
+                      TpWorkerException(
+                        s"Failed fulling image '${assignment.image}', reason: ${pullFailure.toString}"
+                      )
+                    )
+                  )),
+                imageId =>
+                  runAssignment(runTestId, (config.dockerRunArgs.map(_.value) :+ imageId) ++ assignment.args)
+                    .catchAll(commandError =>
+                      ZIO.succeed(Source.single(
+                        TpWorkerReport(Instant.now, TpWorkerException(s"Run error: ${commandError.toString}"))
+                      ))
+                    )
+              )
+          } yield source
         } {
           createRetrySchedule(_, config.retry)
         }

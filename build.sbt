@@ -45,8 +45,6 @@ lazy val server = Build
     publish / skip := true,
     dockerExposedPorts := Seq(8080, 8081),
     dockerEntrypoint := Seq("/usr/bin/dumb-init", "--"),
-    Docker / daemonUserUid := None,
-    Docker / daemonUser := "root", // Needed for nested podman
     libraryDependencies ++= chopsticksDstreamDeps ++ chopsticksZioGrpcCommonDeps ++ chopsticksKvdbFdbDeps ++
       chopsticksKvdbCodecProtobufValueDeps ++ zioProcessDeps ++ zioInteropReactivestreamsDeps ++
       scalapbJson4sDeps ++ quicklensDeps ++ pureconfigEnumeratumDeps ++ zioDeps ++ jsoniterDeps

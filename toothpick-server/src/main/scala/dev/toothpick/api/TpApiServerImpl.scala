@@ -77,7 +77,9 @@ final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with IzLogging] 
       .catchSome {
         case _: ConditionalTransactionFailedException => ZIO.succeed(TpAbortResponse(false))
       }
-      .tapError(e => IzLogging.zioLogger.flatMap(_.error(s"Failed handling abort request: $e")))
+      .tapCause { e =>
+        IzLogging.zioLogger.flatMap(_.error(s"Failed handling abort request: ${e.squash -> "exception"}"))
+      }
       .mapError(Status.INTERNAL.withCause)
   }
 

@@ -9,7 +9,13 @@ message TpTestEvent {
     TpTestResult result = 4;
     TpTestAborted aborted = 5;
     TpTestException exception = 6;
+    TpImagePullingStarted image_pulling_started = 7;
   }
+}
+
+message TpImagePullingStarted {
+  string workerNode = 1;
+  string imageRef = 2;
 }
 
 message TpTestStarted {

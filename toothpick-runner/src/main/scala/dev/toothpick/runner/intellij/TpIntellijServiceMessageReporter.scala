@@ -8,10 +8,12 @@ import dev.toothpick.proto.api._
 import dev.toothpick.runner.intellij.TpIntellijServiceMessageRenderer.{render, unescape}
 import dev.toothpick.runner.intellij.TpIntellijServiceMessages.{Attrs, Names}
 import io.grpc.StatusRuntimeException
+import zio.clock.Clock
 import zio.console.{putStrLn, Console}
 import zio.stream.ZStream
-import zio.{Chunk, RIO, Ref, UIO, URIO, ZIO, ZRefM}
+import zio.{Chunk, RIO, Ref, URIO, ZIO, ZRefM}
 
+import java.time.Instant
 import java.util.UUID
 
 object TpIntellijServiceMessageReporter {
@@ -81,29 +83,28 @@ object TpIntellijServiceMessageReporter {
     tests: NonEmptyList[TpTest],
     reportQueue: zio.Queue[ReportQueueItem],
     onlyLogIfFailed: Boolean
-  ): RIO[Console with TpApiClient with IzLogging, Unit] = {
+  ): RIO[Console with Clock with TpApiClient with IzLogging, Unit] = {
     for {
       zlogger <- IzLogging.zioLogger
       consoleBuffer <- zio.Queue.unbounded[String]
       logToConsole = if (onlyLogIfFailed) consoleBuffer.offer(_: String).unit else putStrLn(_: String)
 
       pendingTests <- ZRefM.make[List[TpTest]](tests.toList)
-      startMsRef <- Ref.make(System.currentTimeMillis())
+      startInstantRef <- zio.clock.instant.flatMap(Ref.make)
       lastTestReportPromise <- zio.Promise.make[Nothing, ReportQueueItem]
       hasFailedTestsRef <- Ref.make(false)
 
       reportNext =
-        (maybeTestName: Option[String], maybeFailure: Option[ReportTestFailure], maybeDuration: Option[Long]) => {
+        (maybeTestName: Option[String], maybeFailure: Option[ReportTestFailure], time: Instant) => {
           pendingTests.update {
             case test :: tail =>
               for {
                 _ <- hasFailedTestsRef.set(true).when(maybeFailure.nonEmpty)
-                nowMs <- UIO(System.currentTimeMillis())
-                startMs <- startMsRef.getAndSet(nowMs)
+                startInstant <- startInstantRef.getAndSet(time)
                 reporQueueItem = ReportQueueItem(
                   id = test.id,
                   failure = maybeFailure,
-                  durationMs = maybeDuration.getOrElse(nowMs - startMs)
+                  durationMs = math.max(0, time.toEpochMilli - startInstant.toEpochMilli)
                 )
                 _ <- maybeTestName match {
                   case Some(reportedName) if reportedName != test.name =>
@@ -126,12 +127,12 @@ object TpIntellijServiceMessageReporter {
           }
         }
 
-      reportAllRemaining = (failure: ReportTestFailure) => {
+      reportAllRemaining = (failure: ReportTestFailure, time: Instant) => {
         pendingTests
           .get
           .flatMap { tests =>
             ZIO.foreach(tests) { _ =>
-              reportNext(None, Some(failure), None)
+              reportNext(None, Some(failure), time)
             }
           }
       }
@@ -141,9 +142,10 @@ object TpIntellijServiceMessageReporter {
       renderErr = renderTestErr(suiteStringId, _)
       _ <- testReportsStream
         .foreach { report: TpTestReport =>
+          val time = report.time
           val task: RIO[Console, Unit] = report.event match {
             case TpTestStarted(workerId, workerNode) =>
-              startMsRef.set(System.currentTimeMillis()) *>
+              startInstantRef.set(time) *>
                 zlogger.info(s"Suite assigned to $workerNode $workerId ${suite.name}")
 
             case MatchesTeamCityServiceMessageEvent(content) =>
@@ -154,7 +156,7 @@ object TpIntellijServiceMessageReporter {
                       reportNext(
                         sm.attributes.get(Attrs.NAME).map(unescape),
                         None,
-                        sm.attributes.get(Attrs.DURATION).map(_.toLong)
+                        time
                       )
 
                     case Names.TEST_FAILED =>
@@ -164,7 +166,7 @@ object TpIntellijServiceMessageReporter {
                           message = unescape(sm.attributes.getOrElse(Names.MESSAGE, "")),
                           details = unescape(sm.attributes.getOrElse(Attrs.DETAILS, ""))
                         )),
-                        None
+                        time
                       )
 
                     case Names.MESSAGE if sm.attributes.get(Attrs.STATUS).contains("ERROR") =>
@@ -174,7 +176,7 @@ object TpIntellijServiceMessageReporter {
                           message = unescape(sm.attributes.getOrElse(Attrs.TEXT, "")),
                           details = unescape(sm.attributes.getOrElse(Attrs.ERROR_DETAILS, ""))
                         )),
-                        None
+                        time
                       )
 
                     case _ => ZIO.unit
@@ -203,10 +205,13 @@ object TpIntellijServiceMessageReporter {
                   case _ =>
                     ZIO.unit
                 }
-                _ <- reportAllRemaining(ReportTestFailure(
-                  message = "Runner process completed prematurely",
-                  details = ""
-                ))
+                _ <- reportAllRemaining(
+                  ReportTestFailure(
+                    message = "Runner process completed prematurely",
+                    details = ""
+                  ),
+                  time
+                )
                 hasFailedTests <- hasFailedTestsRef.get
                 _ <- consoleBuffer
                   .takeAll
@@ -219,10 +224,13 @@ object TpIntellijServiceMessageReporter {
 
             case TpTestException(message) =>
               for {
-                _ <- reportAllRemaining(ReportTestFailure(
-                  message = "Worker failed unexpectedly",
-                  details = message
-                ))
+                _ <- reportAllRemaining(
+                  ReportTestFailure(
+                    message = "Worker failed unexpectedly",
+                    details = message
+                  ),
+                  time
+                )
                 _ <- consoleBuffer
                   .takeAll
                   .flatMap(items => ZIO.foreach(items)(putStrLn(_)))
@@ -254,13 +262,16 @@ object TpIntellijServiceMessageReporter {
       testReportsStream <- watchTestReports(TpRunTestId(uuid, test.id))
       leafStringId = test.id.toString
       renderErr = renderTestErr(leafStringId, _)
-      startMsRef <- Ref.make(System.currentTimeMillis())
+      startMsRef <- Ref.make(Instant.now)
       _ <- testReportsStream
         .foreach { report: TpTestReport =>
           val task: RIO[Console, Unit] = report.event match {
             case TpTestStarted(workerId, workerNode) =>
-              startMsRef.set(System.currentTimeMillis()) *>
+              startMsRef.set(report.time) *>
                 zlogger.info(s"Test assigned to $workerNode $workerId ${test.fullName}")
+
+            case TpImagePullingStarted(workerNode, image) =>
+              zlogger.info(s"$workerNode is pulling $image")
 
             case MatchesTeamCityServiceMessageEvent(content) =>
               /*putStrLn(render(
@@ -307,7 +318,7 @@ object TpIntellijServiceMessageReporter {
             case TpTestResult(exitCode) =>
               for {
                 startTime <- startMsRef.get
-                elapsed = System.currentTimeMillis() - startTime
+                elapsed = math.max(0, report.time.toEpochMilli - startTime.toEpochMilli)
                 _ <- exitCode match {
                   case 124 =>
                     logToConsole(renderErr("Test run process took too long and was interrupted with SIGTERM"))
@@ -341,7 +352,7 @@ object TpIntellijServiceMessageReporter {
             case TpTestException(message) =>
               for {
                 startTime <- startMsRef.get
-                elapsed = System.currentTimeMillis() - startTime
+                elapsed = math.max(0, report.time.toEpochMilli - startTime.toEpochMilli)
                 _ <- consoleBuffer
                   .takeAll
                   .flatMap(items => ZIO.foreach(items)(putStrLn(_)))
