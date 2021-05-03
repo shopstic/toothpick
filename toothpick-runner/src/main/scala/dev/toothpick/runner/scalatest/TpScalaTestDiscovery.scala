@@ -2,8 +2,8 @@ package dev.toothpick.runner.scalatest
 
 import better.files.File
 import com.linkedin.cytodynamics.nucleus.{DelegateRelationshipBuilder, IsolationLevel, LoaderBuilder, OriginRestriction}
-import dev.toothpick.runner.TpRunnerModels.{ScalaTestHierarchy, TestNode}
-import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser.{TpRunnerConfig, TpRunnerSuiteFilter}
+import dev.toothpick.runner.TpRunnerUtils.{ScalaTestHierarchy, TestNode}
+import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser.{TpRunnerContext, TpRunnerSuiteFilter}
 import zio.Task
 
 import java.util.regex.Pattern
@@ -27,12 +27,12 @@ object TpScalaTestDiscovery {
     }
   }
 
-  def discover(config: TpRunnerConfig, startingNodeId: Int = 1): Task[Map[Int, TestNode]] = {
+  def discover(config: TpRunnerContext, startingNodeId: Int = 1): Task[Map[Int, TestNode]] = {
     Task {
       import scala.jdk.CollectionConverters._
 
-      val classpath = config.context.classpath
-      val filters = config.suites
+      val classpath = config.environment.classpath
+      val filters = config.filters
       val classpathFiles = classpath.map(File(_))
       val testClasses = classpathFiles.filter(_.name == "test-classes").map(_.pathAsString)
       val loader = LoaderBuilder

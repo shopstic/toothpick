@@ -1,12 +1,12 @@
 package dev.toothpick.runner.scalatest
 
 import dev.toothpick.proto.api.{TpTest, TpTestClassLocation, TpTestGroup, TpTestSuite}
-import dev.toothpick.runner.TpRunnerModels._
+import dev.toothpick.runner.TpRunnerUtils.{ROOT_NODE_ID, ScalaTestHierarchy, TestNode}
 
 import java.util.concurrent.atomic.AtomicReference
 
 final class TpScalaTestHierarchyExtractorImpl(loader: ClassLoader, traitName: String, engineClassName: String) {
-  import dev.toothpick.runner.TpRunnerModels.{TestNode, TestNodeOps}
+  import dev.toothpick.runner.TpRunnerUtils.TestNodeOps
 
   private val traitClass = loader.loadClass(traitName)
   private val engineMethod = traitClass.getDeclaredMethod(

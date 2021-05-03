@@ -1,6 +1,6 @@
 package dev.toothpick.runner.scalatest
 
-import dev.toothpick.runner.TpRunnerModels.ScalaTestHierarchy
+import dev.toothpick.runner.TpRunnerUtils.ScalaTestHierarchy
 
 object TpScalaTestHierarchyExtractor {
   def apply(loader: ClassLoader): TpScalaTestHierarchyExtractor = new TpScalaTestHierarchyExtractor(loader)

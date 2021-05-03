@@ -13,6 +13,8 @@ object TpStateMaterialization extends TpStateDef.Materialization {
 
   object hierarchy extends HierarchyKeyspace
 
+  object distribution extends DistributionKeyspace
+
   object queue extends QueueKeyspace
 
   object status extends StatusKeyspace

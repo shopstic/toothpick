@@ -1,19 +1,19 @@
-package dev.toothpick.runner
+package dev.toothpick.reporter
 
-import dev.toothpick.runner.TpRunnerModels.{ROOT_NODE_ID, TestNode}
+import dev.toothpick.runner.TpRunnerUtils.{ROOT_NODE_ID, TestNode}
 
 import scala.collection.immutable.Queue
 
-final case class TpRunnerState(
+final case class TpReporterState(
   hierachy: Map[Int, TestNode],
   topDownQueue: Queue[TestNode],
   pendingMap: Map[Int, Set[Int]]
 )
 
-object TpRunnerState {
-  import dev.toothpick.runner.TpRunnerModels.TestNodeOps
+object TpReporterState {
+  import dev.toothpick.runner.TpRunnerUtils.TestNodeOps
 
-  def create(hierachy: Map[Int, TestNode]): TpRunnerState = {
+  def create(hierachy: Map[Int, TestNode]): TpReporterState = {
     val topDownMap = hierachy
       .values
       .foldLeft(Map.empty[Int, Set[Int]]) { (pendingMap, node) =>
@@ -27,7 +27,7 @@ object TpRunnerState {
 
     def buildTopDownQueue(queue: Queue[TestNode], id: Int): Queue[TestNode] = {
       val nextQueue =
-        if (id == TpRunnerModels.ROOT_NODE_ID) {
+        if (id == ROOT_NODE_ID) {
           queue
         }
         else {
@@ -41,14 +41,14 @@ object TpRunnerState {
 
     val topDownQueue = buildTopDownQueue(Queue.empty, 0)
 
-    TpRunnerState(hierachy = hierachy, topDownQueue = topDownQueue, pendingMap = topDownMap)
+    TpReporterState(hierachy = hierachy, topDownQueue = topDownQueue, pendingMap = topDownMap)
   }
 
   def trimPendingMap(
-    state: TpRunnerState,
+    state: TpReporterState,
     id: Int,
     maybeChildId: Option[Int] = None
-  ): (TpRunnerState, List[TestNode]) = {
+  ): (TpReporterState, List[TestNode]) = {
     (state.pendingMap.get(id), maybeChildId) match {
       case (Some(set), Some(childId)) if set.contains(childId) =>
         val newSet = set - childId

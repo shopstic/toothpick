@@ -159,7 +159,18 @@ object TpDistributionPipeline {
           .api
           .columnFamily(state.keyspaces.queue)
           .tailSource
-          .map(TpWorkerDistributionContext.tupled)
+          .via {
+            import dev.chopsticks.kvdb.codec.KeyTransformer.identityTransformer
+            state.api.columnFamily(state.keyspaces.distribution).batchGetByKeysFlow(_._2)
+          }
+          .collect { case ((versionstamp, _), Some(distribution)) =>
+            import io.scalaland.chimney.dsl._
+
+            TpWorkerDistributionContext(
+              versionstamp,
+              distribution.into[TpWorkerDistribution].transform
+            )
+          }
           .via(distributionFlow)
           .toZAkkaSource
           .interruptibleMapAsyncUnordered(config.master.parallelism) { result =>

@@ -1,5 +1,5 @@
 {
-  "context": {
+  "environment": {
     "classpath": [
       "/Users/NKTPRO/Library/Application Support/JetBrains/Toolbox/apps/IDEA-U/ch-0/203.7717.56/IntelliJ IDEA.app.plugins/Scala/lib/runners.jar",
       "/Users/NKTPRO/Dev/shopstic/chopsticks/chopsticks-kvdb-codec-berkeleydb-key/target/scala-2.13/test-classes",
@@ -139,7 +139,7 @@
       "file.encoding=UTF-8"
     ]
   },
-  "suites": [
+  "filters": [
     {
       "suiteClassName": "dev.chopsticks.kvdb.codec.BerkeleydbKeyCodecTest",
       "filterTestNames": [

@@ -9,7 +9,7 @@ import dev.toothpick.proto.api.{
   TpTestNode,
   TpTestSuite
 }
-import dev.toothpick.runner.TpRunnerModels._
+import dev.toothpick.runner.TpRunnerUtils.ROOT_NODE_ID
 import dev.toothpick.runner.intellij.TpIntellijServiceMessages.{Attrs, Names}
 
 object TpIntellijServiceMessageRenderer {

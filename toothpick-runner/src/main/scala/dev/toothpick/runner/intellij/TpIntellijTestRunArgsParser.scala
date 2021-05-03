@@ -6,25 +6,26 @@ import scala.annotation.tailrec
 import scala.collection.immutable.Queue
 
 object TpIntellijTestRunArgsParser {
-  final case class TpRunnerContext(classpath: List[String], runnerClass: String, systemProperties: List[String])
+  final case class TpRunnerEnvironment(classpath: List[String], runnerClass: String, systemProperties: List[String])
 
   final case class TpRunnerSuiteFilter(suiteClassName: String, filterTestNames: Queue[String] = Queue.empty)
 
-  sealed trait TpRunnerConfig {
-    def context: TpRunnerContext
-    def suites: Queue[TpRunnerSuiteFilter]
+  sealed trait TpRunnerContext {
+    def environment: TpRunnerEnvironment
+    def filters: Queue[TpRunnerSuiteFilter]
   }
 
-  final case class TpScalaTestConfig(context: TpRunnerContext, suites: Queue[TpRunnerSuiteFilter])
-      extends TpRunnerConfig
-  final case class TpZTestConfig(context: TpRunnerContext, suites: Queue[TpRunnerSuiteFilter]) extends TpRunnerConfig
+  final case class TpScalaTestContext(environment: TpRunnerEnvironment, filters: Queue[TpRunnerSuiteFilter])
+      extends TpRunnerContext
+  final case class TpZTestContext(environment: TpRunnerEnvironment, filters: Queue[TpRunnerSuiteFilter])
+      extends TpRunnerContext
 
-  def parse(args: List[String]): TpRunnerConfig = {
+  def parse(args: List[String]): TpRunnerContext = {
     extractClasspath(Queue.empty, args)
   }
 
   @tailrec
-  def extractClasspath(systemProperties: Queue[String], args: List[String]): TpRunnerConfig = {
+  def extractClasspath(systemProperties: Queue[String], args: List[String]): TpRunnerContext = {
     args match {
       case systemProp :: rest if systemProp.startsWith("-D") =>
         extractClasspath(systemProperties.enqueue(systemProp.drop(2)), rest)
@@ -44,16 +45,16 @@ object TpIntellijTestRunArgsParser {
     classpath.split(":").toList
   }
 
-  def extractRunner(classpath: String, systemProperties: Queue[String], args: List[String]): TpRunnerConfig = {
+  def extractRunner(classpath: String, systemProperties: Queue[String], args: List[String]): TpRunnerContext = {
     args match {
       case runnerClass :: rest if runnerClass.endsWith("ScalaTestRunner") =>
-        implicit val ctx: TpRunnerContext =
-          TpRunnerContext(parseClasspath(classpath), runnerClass, systemProperties.toList)
+        implicit val ctx: TpRunnerEnvironment =
+          TpRunnerEnvironment(parseClasspath(classpath), runnerClass, systemProperties.toList)
         extractScalaTestRunnerArgs(rest)
 
       case runnerClass :: rest if runnerClass.endsWith("ZTestRunner") =>
-        implicit val ctx: TpRunnerContext =
-          TpRunnerContext(parseClasspath(classpath), runnerClass, systemProperties.toList)
+        implicit val ctx: TpRunnerEnvironment =
+          TpRunnerEnvironment(parseClasspath(classpath), runnerClass, systemProperties.toList)
         extractZTestRunnerArgs(rest)
 
       case invalid =>
@@ -63,20 +64,20 @@ object TpIntellijTestRunArgsParser {
 
   @tailrec
   def extractScalaTestRunnerMultiSuites(suites: Queue[TpRunnerSuiteFilter], args: List[String])(implicit
-    ctx: TpRunnerContext
-  ): TpScalaTestConfig = {
+    ctx: TpRunnerEnvironment
+  ): TpScalaTestContext = {
     args match {
       case "-s" :: suiteClassName :: tail if suiteClassName.nonEmpty =>
         val suite = TpRunnerSuiteFilter(suiteClassName)
         extractScalaTestRunnerMultiSuites(suites.enqueue(suite), tail)
       case Nil =>
-        TpScalaTestConfig(ctx, suites)
+        TpScalaTestContext(ctx, suites)
       case invalid =>
         throw new IllegalArgumentException(s"Invalid multi-suite arguments: $invalid")
     }
   }
 
-  def extractScalaTestRunnerArgs(args: List[String])(implicit ctx: TpRunnerContext): TpScalaTestConfig = {
+  def extractScalaTestRunnerArgs(args: List[String])(implicit ctx: TpRunnerEnvironment): TpScalaTestContext = {
     args match {
       case "-s" :: suiteClassName :: tail if suiteClassName.nonEmpty =>
         extractScalaTestRunnerSingleSuiteTestNames(TpRunnerSuiteFilter(suiteClassName), tail)
@@ -86,16 +87,16 @@ object TpIntellijTestRunArgsParser {
           File(possibleFileReference.drop(1)).lines.filter(_.nonEmpty).toList
         )
       case _ =>
-        TpScalaTestConfig(ctx, Queue.empty)
+        TpScalaTestContext(ctx, Queue.empty)
     }
   }
 
-  def extractZTestRunnerArgs(args: List[String])(implicit ctx: TpRunnerContext): TpZTestConfig = {
+  def extractZTestRunnerArgs(args: List[String])(implicit ctx: TpRunnerEnvironment): TpZTestContext = {
     args match {
       case "-s" :: suiteClassName :: tail if suiteClassName.nonEmpty =>
         extractZTestRunnerSingleSuiteTestNames(TpRunnerSuiteFilter(suiteClassName), tail)
       case _ =>
-        TpZTestConfig(ctx, Queue.empty)
+        TpZTestContext(ctx, Queue.empty)
     }
   }
 
@@ -103,7 +104,7 @@ object TpIntellijTestRunArgsParser {
   def extractZTestRunnerSingleSuiteTestNames(
     suite: TpRunnerSuiteFilter,
     args: List[String]
-  )(implicit ctx: TpRunnerContext): TpZTestConfig = {
+  )(implicit ctx: TpRunnerEnvironment): TpZTestContext = {
     args match {
       case "-t" :: testName :: tail if testName.nonEmpty =>
         extractZTestRunnerSingleSuiteTestNames(
@@ -111,7 +112,7 @@ object TpIntellijTestRunArgsParser {
           tail
         )
       case _ =>
-        TpZTestConfig(ctx, Queue(suite))
+        TpZTestContext(ctx, Queue(suite))
     }
   }
 
@@ -119,7 +120,7 @@ object TpIntellijTestRunArgsParser {
   def extractScalaTestRunnerSingleSuiteTestNames(
     suite: TpRunnerSuiteFilter,
     args: List[String]
-  )(implicit ctx: TpRunnerContext): TpScalaTestConfig = {
+  )(implicit ctx: TpRunnerEnvironment): TpScalaTestContext = {
     args match {
       case "-testName" :: testName :: tail if testName.nonEmpty =>
         extractScalaTestRunnerSingleSuiteTestNames(
@@ -127,7 +128,7 @@ object TpIntellijTestRunArgsParser {
           tail
         )
       case _ =>
-        TpScalaTestConfig(ctx, Queue(suite))
+        TpScalaTestContext(ctx, Queue(suite))
     }
   }
 }

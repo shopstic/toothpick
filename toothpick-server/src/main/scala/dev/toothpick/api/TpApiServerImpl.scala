@@ -7,7 +7,6 @@ import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.kvdb.util.KvdbException.ConditionalTransactionFailedException
 import dev.toothpick.proto.api.ZioApi.RTpApi
 import dev.toothpick.proto.api._
-import dev.toothpick.proto.dstream.TpWorkerDistribution
 import dev.toothpick.proto.server.{TpRunAbortRequestStatus, TpTestStatus}
 import dev.toothpick.state.TpState
 import io.grpc.Status
@@ -36,9 +35,14 @@ final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with IzLogging] 
 
             t
               .put(
+                state.keyspaces.distribution,
+                runTestId,
+                TpRunDistribution(runId = runId, testId = id, image = runOptions.image, args = runOptions.args)
+              )
+              .put(
                 state.keyspaces.queue,
                 Versionstamp.incomplete(id),
-                TpWorkerDistribution(runId = runId, testId = id, image = runOptions.image, args = runOptions.args)
+                runTestId
               )
               .put(state.keyspaces.status, runTestId, TpTestStatus.defaultInstance)
               .put(state.keyspaces.abort, runId, TpRunAbortRequestStatus.defaultInstance)
@@ -116,6 +120,29 @@ final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with IzLogging] 
                 TpWatchResponse(ended = ended, versionstamp = key.sequence, report = report)
               }
               .takeWhile(!_.ended, inclusive = true)
+              .runWith(Sink.asPublisher(false))
+              .toStream()
+          }
+        } yield stream
+      }
+      .flatten
+      .mapError(Status.INTERNAL.withCause)
+  }
+
+  override def getDistributions(request: TpGetDistributionsRequest)
+    : ZStream[TpState with AkkaEnv, Status, TpRunDistribution] = {
+    import zio.interop.reactivestreams._
+
+    ZStream
+      .fromEffect {
+        for {
+          state <- TpState.get
+          runId = request.runId
+          stream <- AkkaEnv.actorSystem.map { implicit as =>
+            state
+              .api
+              .columnFamily(state.keyspaces.distribution)
+              .valueSource(_ startsWith runId, _ startsWith runId)
               .runWith(Sink.asPublisher(false))
               .toStream()
           }

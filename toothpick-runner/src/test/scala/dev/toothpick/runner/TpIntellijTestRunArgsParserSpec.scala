@@ -4,11 +4,11 @@ import better.files.{File, Resource}
 import com.github.plokhotnyuk.jsoniter_scala.core.{JsonValueCodec, _}
 import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser
 import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser.{
-  TpRunnerConfig,
   TpRunnerContext,
+  TpRunnerEnvironment,
   TpRunnerSuiteFilter,
-  TpScalaTestConfig,
-  TpZTestConfig
+  TpScalaTestContext,
+  TpZTestContext
 }
 import zio.{Task, ZManaged}
 import zio.test.Assertion._
@@ -18,17 +18,17 @@ import scala.collection.immutable.Queue
 
 //noinspection TypeAnnotation
 object TpIntellijTestRunArgsParserSpec extends DefaultRunnableSpec {
-  implicit val scalaTestJsonCodec: JsonValueCodec[TpScalaTestConfig] = {
+  implicit val scalaTestJsonCodec: JsonValueCodec[TpScalaTestContext] = {
     import com.github.plokhotnyuk.jsoniter_scala.macros._
-    JsonCodecMaker.make[TpScalaTestConfig]
+    JsonCodecMaker.make[TpScalaTestContext]
   }
 
-  implicit val zTestJsonCodec: JsonValueCodec[TpZTestConfig] = {
+  implicit val zTestJsonCodec: JsonValueCodec[TpZTestContext] = {
     import com.github.plokhotnyuk.jsoniter_scala.macros._
-    JsonCodecMaker.make[TpZTestConfig]
+    JsonCodecMaker.make[TpZTestContext]
   }
 
-  def parseAndCompareFixture[Cfg <: TpRunnerConfig: JsonValueCodec](number: Int) = {
+  def parseAndCompareFixture[Cfg <: TpRunnerContext: JsonValueCodec](number: Int) = {
     test(s"should parse sample $number") {
       val args = Resource.getAsString(s"fixtures/run-args/$number-args.txt").linesIterator.toList
       val expected = readFromStream[Cfg](Resource.getAsStream(s"fixtures/run-args/$number-expected.json"))
@@ -39,9 +39,9 @@ object TpIntellijTestRunArgsParserSpec extends DefaultRunnableSpec {
   }
 
   override def spec = suite("IntellijTestRunArgsParser")(
-    parseAndCompareFixture[TpScalaTestConfig](1),
-    parseAndCompareFixture[TpScalaTestConfig](2),
-    parseAndCompareFixture[TpZTestConfig](3),
+    parseAndCompareFixture[TpScalaTestContext](1),
+    parseAndCompareFixture[TpScalaTestContext](2),
+    parseAndCompareFixture[TpZTestContext](3),
     testM("should parse list of suites from a file reference") {
       ZManaged.make {
         Task(File.newTemporaryFile())
@@ -72,13 +72,13 @@ object TpIntellijTestRunArgsParserSpec extends DefaultRunnableSpec {
           val parsed = TpIntellijTestRunArgsParser.parse(args)
 
           assert(parsed)(equalTo {
-            TpScalaTestConfig(
-              TpRunnerContext(
+            TpScalaTestContext(
+              TpRunnerEnvironment(
                 classpath = List("/foo/bar/baz.jar", "/foo/bar/boo.jar"),
                 runnerClass = "org.jetbrains.plugins.scala.testingSupport.scalaTest.ScalaTestRunner",
                 systemProperties = List("file.encoding=UTF-8")
               ),
-              suites = Queue(
+              filters = Queue(
                 TpRunnerSuiteFilter(
                   suiteClassName = "foo.bar.baz.Foo"
                 ),

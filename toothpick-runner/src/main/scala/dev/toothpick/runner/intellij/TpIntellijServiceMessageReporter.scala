@@ -2,9 +2,9 @@ package dev.toothpick.runner.intellij
 
 import cats.data.NonEmptyList
 import dev.chopsticks.fp.iz_logging.IzLogging
-import dev.toothpick.app.TpRunnerApp.{MatchesEmptyLineStdoutReport, MatchesTeamCityServiceMessageEvent}
 import dev.toothpick.proto.api.ZioApi.TpApiClient
 import dev.toothpick.proto.api._
+import dev.toothpick.runner.TpRunnerUtils.{MatchesEmptyLineStdoutReport, MatchesTeamCityServiceMessageEvent}
 import dev.toothpick.runner.intellij.TpIntellijServiceMessageRenderer.{render, unescape}
 import dev.toothpick.runner.intellij.TpIntellijServiceMessages.{Attrs, Names}
 import io.grpc.StatusRuntimeException

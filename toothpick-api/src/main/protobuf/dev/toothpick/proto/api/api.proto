@@ -17,6 +17,9 @@ service TpApi {
 
   rpc Watch (TpWatchRequest) returns (stream TpWatchResponse) {
   }
+
+  rpc GetDistributions (TpGetDistributionsRequest) returns (stream TpRunDistribution) {
+  }
 }
 
 message TpTestRunOptions {
@@ -64,4 +67,15 @@ message TpTestReport {
 
 message TpRunHierarchy {
   map<int32, TpTestNode> hierarchy = 1;
+}
+
+message TpGetDistributionsRequest {
+  string runId = 1 [(scalapb.field).type = "java.util.UUID"];
+}
+
+message TpRunDistribution {
+  string runId = 1 [(scalapb.field).type = "java.util.UUID"];
+  int32 testId = 2 ;
+  string image = 3;
+  repeated string args = 4;
 }

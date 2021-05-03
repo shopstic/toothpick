@@ -5,7 +5,7 @@ import com.google.cloud.tools.jib.api._
 import com.google.cloud.tools.jib.api.buildplan.{AbsoluteUnixPath, FileEntriesLayer}
 import com.google.cloud.tools.jib.event.events.TimerEvent
 import dev.chopsticks.fp.iz_logging.IzLogging
-import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser.TpRunnerConfig
+import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser.TpRunnerContext
 import eu.timepit.refined.types.numeric.PosInt
 import eu.timepit.refined.types.string.NonEmptyString
 import eu.timepit.refined.auto._
@@ -23,15 +23,15 @@ object TpRunnerContainerizer {
 
   //noinspection MatchToPartialFunction
   def containerize(
-    runnerConfig: TpRunnerConfig,
+    context: TpRunnerContext,
     containerizerConfig: TpRunnerContainerizerConfig
   ): RIO[IzLogging, String] = {
     IzLogging.logger.flatMap { logger =>
       Task {
         import scala.jdk.CollectionConverters._
 
-        val context = runnerConfig.context
-        val classpathFiles = context.classpath.map(File(_))
+        val env = context.environment
+        val classpathFiles = env.classpath.map(File(_))
 
         val jarsLayerBuilder = FileEntriesLayer.builder()
         val classesLayerBuilder = FileEntriesLayer.builder()
@@ -73,10 +73,10 @@ object TpRunnerContainerizer {
           s"--kill-after=${containerizerConfig.killAfterRunTimeoutSeconds}s",
           s"${containerizerConfig.runTimeoutSeconds}s",
           "java"
-        ) ++ containerizerConfig.javaOptions ++ context.systemProperties.map(p => s"-D$p") ++ Vector(
+        ) ++ containerizerConfig.javaOptions ++ env.systemProperties.map(p => s"-D$p") ++ Vector(
           "-cp",
           classpathListBuilder.result().mkString(":")
-        ) :+ context.runnerClass
+        ) :+ env.runnerClass
 
         val targetImageString = containerizerConfig.targetImage.value
         val baseImage = RegistryImage.named(
