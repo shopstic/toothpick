@@ -40,6 +40,7 @@ helm.sh/chart: {{ include "toothpick-worker.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/component: worker
 {{- end }}
 
 {{/*
@@ -48,6 +49,7 @@ Selector labels
 {{- define "toothpick-worker.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "toothpick-worker.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: worker
 {{- end }}
 
 {{/*

@@ -1,35 +1,40 @@
-{{ $fullName := include "toothpick-worker.fullname" . }}
+{{ $root := . }}
+{{ $Values := .Values }}
 {{- $configHash := (include (print $.Template.BasePath "/app-config-secret.yaml") . ) | sha256sum -}}
+{{ $fullName := include "toothpick-worker.fullname" $root }}
+{{- range $replicaId := until (.Values.replicaCount | int) }}
+{{ $replicaName := (print (include "toothpick-worker.fullname" $root) "-" $replicaId) }}
+---
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
-  name: {{ include "toothpick-worker.fullname" . }}
+  name: {{ $replicaName }}
   labels:
-    {{- include "toothpick-worker.labels" . | nindent 4 }}
+    {{- include "toothpick-worker.labels" $root | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
-  serviceName: "toothpick-worker"
-  podManagementPolicy: Parallel
+  replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
-      {{- include "toothpick-worker.selectorLabels" . | nindent 6 }}
+      {{- include "toothpick-worker.selectorLabels" $root | nindent 6 }}
   template:
     metadata:
       annotations:
         "shopstic.com/app-config-hash": {{ $configHash }}
-        {{- with .Values.podAnnotations }}
+        {{- with $Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "toothpick-worker.selectorLabels" . | nindent 8 }}
+        {{- include "toothpick-worker.selectorLabels" $root | nindent 8 }}
     spec:
-      {{- with .Values.global.imagePullSecrets }}
+      {{- with $Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "toothpick-worker.serviceAccountName" . }}
+      serviceAccountName: {{ include "toothpick-worker.serviceAccountName" $root }}
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- toYaml $Values.podSecurityContext | nindent 8 }}
       containers:
         - name: dind
           securityContext:
@@ -46,7 +51,7 @@ spec:
               mountPath: "/certs/client"
             - name: fdb-cluster-file
               mountPath: /mnt/fdb
-            {{- with .Values.dind.extraVolumeMounts }}
+            {{- with $Values.dind.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           livenessProbe:
@@ -69,20 +74,20 @@ spec:
                 - docker
                 - info
 
-        - name: {{ .Chart.Name }}
+        - name: {{ $root.Chart.Name }}
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.global.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+            {{- toYaml $Values.securityContext | nindent 12 }}
+          image: "{{ $Values.global.image.repository }}:{{ $Values.global.image.tag | default $root.Chart.AppVersion }}"
+          imagePullPolicy: {{ $Values.global.image.pullPolicy }}
           ports:
-            {{- range $key, $val := .Values.ports }}
+            {{- range $key, $val := $Values.ports }}
             - name: {{ kebabcase $key }}
               containerPort: {{ $val.container }}
               protocol: TCP
             {{- end }}
-            {{- if .Values.jmx.enabled }}
+            {{- if $Values.jmx.enabled }}
             - name: jmx
-              containerPort: {{ .Values.jmx.port }}
+              containerPort: {{ $Values.jmx.port }}
               protocol: TCP
             {{- end }}
           livenessProbe:
@@ -93,7 +98,7 @@ spec:
             exec:
               command:
                 - /k8s-probe-tools/prom2jq
-                - "http://localhost:{{ .Values.ports.appMetrics.container }}/metrics"
+                - "http://localhost:{{ $Values.ports.appMetrics.container }}/metrics"
                 - -e
                 - |
                   .[] | select(.name=="tp_dstream_worker_status" and ((.metrics | length) > 0))
@@ -106,14 +111,14 @@ spec:
             exec:
               command:
                 - /k8s-probe-tools/prom2jq
-                - "http://localhost:{{ .Values.ports.appMetrics.container }}/metrics"
+                - "http://localhost:{{ $Values.ports.appMetrics.container }}/metrics"
                 - -e
                 - |
                   .[] | select(.name=="tp_dstream_worker_status" and ((.metrics | length) > 0))
 
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-          {{- with .Values.command }}
+            {{- toYaml $Values.resources | nindent 12 }}
+          {{- with $Values.command }}
           command:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -121,14 +126,14 @@ spec:
             - /opt/docker/bin/tp-worker-app
             - "-J-server"
             - "-J-XshowSettings:system"
-            - "-J-javaagent:/mnt/prometheus-jmx-exporter-agent/jmx_prometheus_javaagent.jar={{ .Values.ports.jmxMetrics.container }}:/mnt/prometheus-jmx-exporter-config/config.yaml"
-            {{- if .Values.yourkitAgent.enabled }}
-            - "-J-agentpath:/mnt/yourkit-agent/libyjpagent.so=port={{ .Values.yourkitAgent.port }},listen=all,logdir=/dev/stderr"
+            - "-J-javaagent:/mnt/prometheus-jmx-exporter-agent/jmx_prometheus_javaagent.jar={{ $Values.ports.jmxMetrics.container }}:/mnt/prometheus-jmx-exporter-config/config.yaml"
+            {{- if $Values.yourkitAgent.enabled }}
+            - "-J-agentpath:/mnt/yourkit-agent/libyjpagent.so=port={{ $Values.yourkitAgent.port }},listen=all,logdir=/dev/stderr"
             {{- end }}
-            {{- if .Values.jmx.enabled }}
+            {{- if $Values.jmx.enabled }}
             - "-Dcom.sun.management.jmxremote"
-            - "-Dcom.sun.management.jmxremote.port={{ .Values.jmx.port }}"
-            - "-Dcom.sun.management.jmxremote.rmi.port={{ .Values.jmx.port }}"
+            - "-Dcom.sun.management.jmxremote.port={{ $Values.jmx.port }}"
+            - "-Dcom.sun.management.jmxremote.rmi.port={{ $Values.jmx.port }}"
             - "-Dcom.sun.management.jmxremote.host=0.0.0.0"
             - "-Djava.rmi.server.hostname=127.0.0.1"
             - "-Dcom.sun.management.jmxremote.local.only=false"
@@ -137,11 +142,11 @@ spec:
             {{- end }}
             - "-Dconfig.entry=/mnt/app-config/app.conf"
             - "-Dlog.level=INFO"
-            {{- with .Values.args }}
+            {{- with $Values.args }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           volumeMounts:
-            {{- if .Values.yourkitAgent.enabled }}
+            {{- if $Values.yourkitAgent.enabled }}
             - name: yourkit-agent
               mountPath: /mnt/yourkit-agent
             {{- end }}
@@ -177,7 +182,7 @@ spec:
           volumeMounts:
             - mountPath: /k8s-probe-tools
               name: probe-tools
-        {{- with .Values.yourkitAgent.image }}
+        {{- with $Values.yourkitAgent.image }}
         - name: yourkit-agent
           image: "{{ .repository }}:{{ .tag }}"
           imagePullPolicy: {{ .pullPolicy }}
@@ -185,7 +190,7 @@ spec:
             - name: yourkit-agent
               mountPath: "/target"
         {{- end }}
-        {{- with .Values.prometheusJmxExporterAgent.image }}
+        {{- with $Values.prometheusJmxExporterAgent.image }}
         - name: prometheus-jmx-exporter-agent
           image: "{{ .repository }}:{{ .tag }}"
           imagePullPolicy: {{ .pullPolicy }}
@@ -206,22 +211,25 @@ spec:
             secretName: {{ $fullName }}-app-config
         - name: fdb-cluster-file
           configMap:
-            name: {{ required "global.fdbConnectionStringConfigMap.name is required" .Values.global.fdbConnectionStringConfigMap.name | quote }}
+            name: {{ required "global.fdbConnectionStringConfigMap.name is required" $Values.global.fdbConnectionStringConfigMap.name | quote }}
             items:
-              - key: {{ .Values.global.fdbConnectionStringConfigMap.key | quote }}
+              - key: {{ $Values.global.fdbConnectionStringConfigMap.key | quote }}
                 path: cluster.file
         - name: probe-tools
           emptyDir: {}
         - name: dind-certs-client
           emptyDir: {}
-        {{- with .Values.dind.extraVolumes }}
+        - name: dind-data
+          persistentVolumeClaim:
+            claimName: {{ $replicaName }}
+        {{- with $Values.dind.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.nodeSelector }}
+      {{- with $Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with $Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- else }}
@@ -230,22 +238,27 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
                 matchExpressions:
-                  - key: "app.kubernetes.io/instance"
-                    operator: In
-                    values:
-                      - {{ .Release.Name }}
                   - key: "app.kubernetes.io/name"
                     operator: In
                     values:
-                      - {{ include "toothpick-worker.name" . }}
+                      - {{ include "toothpick-worker.name" $root }}
+                  - key: "app.kubernetes.io/component"
+                    operator: In
+                    values:
+                      - worker
               topologyKey: kubernetes.io/hostname
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with $Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-  volumeClaimTemplates:
-    - metadata:
-        name: dind-data
-      spec:
-        {{ toYaml .Values.dind.dataVolumeClaimSpec | nindent 8 }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $replicaName }}
+  labels:
+    {{- include "toothpick-worker.labels" $root | nindent 4 }}
+spec:
+  {{ toYaml $Values.dind.dataVolumeClaimSpec | nindent 2 }}
+{{- end }}

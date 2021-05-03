@@ -39,6 +39,7 @@ helm.sh/chart: {{ include "toothpick-master.chart" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
+app.kubernetes.io/component: master
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
@@ -47,6 +48,7 @@ Selector labels
 */}}
 {{- define "toothpick-master.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "toothpick-master.name" . }}
+app.kubernetes.io/component: master
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
