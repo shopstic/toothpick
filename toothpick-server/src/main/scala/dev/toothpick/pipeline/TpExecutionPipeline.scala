@@ -239,7 +239,7 @@ object TpExecutionPipeline {
                   RunEventKey(runTestId, Versionstamp.incomplete()),
                   TpTestReport(
                     Instant.now,
-                    TpImagePullingStarted(workerNode = workerId.toString, imageRef = assignment.image)
+                    TpImagePullingStarted(workerNode = nodeName, imageRef = assignment.image)
                   )
                 )
               }

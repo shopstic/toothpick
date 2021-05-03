@@ -14,8 +14,8 @@ docker run \
   --privileged \
   --hostname=toothpick-shell \
   -e GITHUB_TOKEN \
-  -v "${HOME}/Library/Caches/Coursier:/home/runner/.cache/coursier" \
   -v "${HOME}/.sbt:/home/runner/.sbt" \
+  -v "${HOME}/Library/Caches/Coursier:/home/runner/.cache/coursier" \
   -v "${HOME}/Library/Caches/com.thesamet.scalapb.protocbridge.protocbridge:/home/runner/.cache/protocbridge" \
   -v "${PWD}:${PWD}" \
   -w "${PWD}" \
