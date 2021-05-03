@@ -148,6 +148,9 @@ object TpIntellijServiceMessageReporter {
               startInstantRef.set(time) *>
                 zlogger.info(s"Suite assigned to $workerNode $workerId ${suite.name}")
 
+            case TpImagePullingStarted(workerNode, image) =>
+              zlogger.info(s"$workerNode is pulling $image")
+
             case MatchesTeamCityServiceMessageEvent(content) =>
               TpIntellijServiceMessageParser.parse(content) match {
                 case Right(sm) =>
@@ -239,7 +242,11 @@ object TpIntellijServiceMessageReporter {
                 _ <- reportQueue.offer(lastTestReport)
               } yield ()
 
-            case _ => ???
+            case _: TpTestAborted =>
+              ZIO.fail(new IllegalStateException("Test was aborted"))
+
+            case TpTestEvent.Empty =>
+              ZIO.unit
           }
 
           task
@@ -364,7 +371,11 @@ object TpIntellijServiceMessageReporter {
                 ))
               } yield ()
 
-            case _ => ???
+            case _: TpTestAborted =>
+              ZIO.fail(new IllegalStateException("Test was aborted"))
+
+            case TpTestEvent.Empty =>
+              ZIO.unit
           }
 
           task
