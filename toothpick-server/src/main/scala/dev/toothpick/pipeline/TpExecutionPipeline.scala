@@ -150,12 +150,12 @@ object TpExecutionPipeline {
             } yield ret
           }
           (pulledPromise, hasBeenPulled) = pullState
-          _ <- onStarted *> pullImage(config.dockerPath, image)
+          _ <- (onStarted *> pullImage(config.dockerPath, image)
             .foldM(
               failure => STM.atomically(pulledPromise.fail(failure) *> tmap.delete(image)),
               imageId => STM.atomically(pulledPromise.succeed(imageId) *> tmap.delete(image))
             )
-            .logResult(s"Pull $image", _.toString)
+            .logResult(s"Pull $image", _.toString))
             .when(!hasBeenPulled)
           imageId <- pulledPromise.await.commit
         } yield imageId
