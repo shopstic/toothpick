@@ -18,7 +18,7 @@ import zio.Schedule.{Decision, StepFunction}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.process.{Command, CommandError}
-import zio.stm.{STM, TMap, TPromise}
+import zio.stm.{STM, TMap, TPromise, TQueue}
 import zio.{ExitCode, Schedule, Task, URIO, URLayer, ZIO}
 
 import java.time.{Instant, OffsetDateTime}
@@ -31,6 +31,7 @@ object TpExecutionPipeline {
   final case class TestExecutionConfig(
     worker: DstreamWorkerConfig,
     retry: DstreamWorkerRetryConfig,
+    imagePullCacheTtl: FiniteDuration,
     dockerPath: NonEmptyString,
     dockerRunArgs: Vector[NonEmptyString]
   )
@@ -131,6 +132,19 @@ object TpExecutionPipeline {
     for {
       worker <- ZIO.access[DstreamWorker[TpWorkerDistribution, TpWorkerReport]](_.get)
       tmap <- TMap.make[String, TPromise[ImagePullFailure, String]]().commit
+      ttlQueue <- TQueue.unbounded[(String, Instant)].commit
+      _ <- zio.stream.Stream
+        .fromTQueue(ttlQueue)
+        .mapM { case (image, time) =>
+          for {
+            now <- zio.clock.instant
+            elapsed = java.time.Duration.between(time, now)
+            delay = config.imagePullCacheTtl.toJava.minus(elapsed)
+            _ <- tmap.delete(image).commit.delay(delay)
+          } yield ()
+        }
+        .runDrain
+        .fork
       nodeName = sys.env.get("NODE_NAME").orElse(sys.env.get("HOSTNAME")).getOrElse("unknown")
 
       pullAssignmentImage = (image: String, onStarted: Task[Unit]) => {
@@ -153,7 +167,7 @@ object TpExecutionPipeline {
           _ <- (onStarted *> pullImage(config.dockerPath, image)
             .foldM(
               failure => STM.atomically(pulledPromise.fail(failure) *> tmap.delete(image)),
-              imageId => STM.atomically(pulledPromise.succeed(imageId) *> tmap.delete(image))
+              imageId => STM.atomically(pulledPromise.succeed(imageId) *> ttlQueue.offer(image -> Instant.now))
             )
             .logResult(s"Pull $image", _.toString))
             .when(!hasBeenPulled)
