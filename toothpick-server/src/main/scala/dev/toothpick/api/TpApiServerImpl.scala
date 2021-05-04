@@ -151,4 +151,26 @@ final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with IzLogging] 
       .flatten
       .mapError(Status.INTERNAL.withCause)
   }
+
+  override def getHierarchy(request: TpGetHierarchyRequest): ZStream[TpState with AkkaEnv, Status, TpTestNode] = {
+    import zio.interop.reactivestreams._
+
+    ZStream
+      .fromEffect {
+        for {
+          state <- TpState.get
+          runId = request.runId
+          stream <- AkkaEnv.actorSystem.map { implicit as =>
+            state
+              .api
+              .columnFamily(state.keyspaces.hierarchy)
+              .valueSource(_ startsWith runId, _ startsWith runId)
+              .runWith(Sink.asPublisher(false))
+              .toStream()
+          }
+        } yield stream
+      }
+      .flatten
+      .mapError(Status.INTERNAL.withCause)
+  }
 }

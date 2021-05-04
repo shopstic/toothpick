@@ -2,11 +2,10 @@ package dev.toothpick.runner
 
 import cats.data.NonEmptyList
 import dev.toothpick.proto.api._
+import dev.toothpick.reporter.TpReporter.TestFailureDetails
 import dev.toothpick.runner.intellij.TpIntellijServiceMessageParser.TC_PREFIX
-import dev.toothpick.runner.intellij.TpIntellijServiceMessageReporter.ReportTestFailure
 
 import scala.annotation.tailrec
-import scala.util.matching.Regex
 
 object TpRunnerUtils {
   val ROOT_NODE_ID = 0
@@ -37,7 +36,7 @@ object TpRunnerUtils {
   final case class ReportStreamItem(
     nodes: List[TestNode],
     allDone: Boolean,
-    failure: Option[ReportTestFailure],
+    failure: Option[TestFailureDetails],
     durationMs: Long
   )
 
@@ -59,10 +58,8 @@ object TpRunnerUtils {
     }
   }
 
-  def createDistributions(
-    hierarchy: Map[Int, TestNode],
-    testPerProcessFileNameRegex: Regex
-  ): List[TestDistribution] = {
+  def createDistributions(hierarchy: Map[Int, TestNode])(distributeSuitePerProcess: TpTestSuite => Boolean)
+    : List[TestDistribution] = {
 
     @tailrec
     def findSuiteParent(node: TestNode): TpTestSuite = {
@@ -88,11 +85,11 @@ object TpRunnerUtils {
       }
 
     suiteToTestsMap.toList.flatMap { case (suite, tests) =>
-      if (testPerProcessFileNameRegex.matches(suite.name)) {
-        tests.toList.map(TestPerProcessDistribution)
+      if (distributeSuitePerProcess(suite)) {
+        SuitePerProcessDistribution(suite, tests.sortBy(_.id)) :: Nil
       }
       else {
-        SuitePerProcessDistribution(suite, tests.sortBy(_.id)) :: Nil
+        tests.toList.map(TestPerProcessDistribution)
       }
     }
   }

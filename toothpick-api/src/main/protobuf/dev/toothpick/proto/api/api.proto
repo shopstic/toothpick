@@ -18,6 +18,9 @@ service TpApi {
   rpc Watch (TpWatchRequest) returns (stream TpWatchResponse) {
   }
 
+  rpc GetHierarchy (TpGetHierarchyRequest) returns (stream TpTestNode) {
+  }
+
   rpc GetDistributions (TpGetDistributionsRequest) returns (stream TpRunDistribution) {
   }
 }
@@ -78,4 +81,8 @@ message TpRunDistribution {
   int32 testId = 2 ;
   string image = 3;
   repeated string args = 4;
+}
+
+message TpGetHierarchyRequest {
+  string runId = 1 [(scalapb.field).type = "java.util.UUID"];
 }
