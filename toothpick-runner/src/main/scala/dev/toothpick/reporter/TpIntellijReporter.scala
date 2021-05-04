@@ -20,15 +20,15 @@ object TpIntellijReporter {
   ): ZIO[Console with TpApiClient with Clock with IzLogging, RuntimeException, Unit] = {
 
     for {
-      state <- UIO(TpReporterState.create(runnerState.hierarchy))
+      initialState <- UIO(TpReporterState.create(runnerState.hierarchy))
 
-      testCount = state.hierachy.values.count {
+      testCount = initialState.hierachy.values.count {
         case _: TpTest => true
         case _ => false
       }
 
       _ <- UIO {
-        state
+        initialState
           .topDownQueue
           .map(renderStartEvent)
           .prepended(render(
@@ -57,13 +57,13 @@ object TpIntellijReporter {
 
       _ <- ZStream
         .mergeAllUnbounded()(streams: _*)
-        .mapAccum(state) { case (s, event) =>
+        .mapAccum(initialState) { case (currentState, event) =>
           event match {
             case line: TestOutputLine =>
-              state -> Left(line)
+              currentState -> Left(line)
 
             case outcome: TestOutcome =>
-              val (newState, toEmit) = TpReporterState.trimPendingMap(s, outcome.nodeId)
+              val (newState, toEmit) = TpReporterState.trimPendingMap(currentState, outcome.nodeId)
               newState -> Right(ReportStreamItem(
                 nodes = toEmit,
                 allDone = newState.pendingMap.isEmpty,
@@ -74,13 +74,13 @@ object TpIntellijReporter {
         }
         .map {
           case Left(TestOutputLine(nodeId, pipe, content)) =>
-            List(render(
+            render(
               if (pipe.isStdout) Names.TEST_STD_OUT else Names.TEST_STD_ERR,
               Map(
                 Attrs.NODE_ID -> nodeId.toString,
                 Attrs.OUT -> (content + "\n")
               )
-            ))
+            ) :: Nil
 
           case Right(ReportStreamItem(nodes, _, maybeFailure, durationMs)) =>
             nodes.map {
