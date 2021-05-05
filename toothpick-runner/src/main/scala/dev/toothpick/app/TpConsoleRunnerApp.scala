@@ -5,6 +5,7 @@ import dev.chopsticks.fp.iz_logging.{IzLogTemplates, IzLogging, IzLoggingRouter}
 import dev.chopsticks.fp.zio_ext.ZIOExtensions
 import dev.toothpick.exporter.TpJunitXmlExporter
 import dev.toothpick.proto.api.TpTest
+import dev.toothpick.reporter.TpReporter.TestFailed
 import dev.toothpick.reporter.{TpConsoleReporter, TpReporterConfig}
 import dev.toothpick.runner.TpRunner.TpRunnerConfig
 import dev.toothpick.runner.TpRunnerApiClient.TpRunnerApiClientConfig
@@ -67,16 +68,17 @@ object TpConsoleRunnerApp extends zio.App {
       runnerState <- TpRunner.run(context, appConfig.runner)
       _ <- zlogger.info(s"Run has started with ${runnerState.runId}")
       result <- TpConsoleReporter.report(runnerState, appConfig.reporter)
-      (hierarchy, maybeReport) = result
-      failedOutcomes = maybeReport.map(_.outcomes.values.filter(_.failure.nonEmpty).toList).getOrElse(List.empty)
-      failedCount = failedOutcomes.size
+      (hierarchy, maybeRunReport) = result
+      failures =
+        maybeRunReport.map(_.reports.values.filter(_.outcome.isInstanceOf[TestFailed]).toList).getOrElse(List.empty)
+      failedCount = failures.size
       _ <- {
         val message =
           s"""
                |--------------------------------------------------------------------------------------------------------------
                |The following ${failedCount} test${if (failedCount > 1) "s" else ""} failed:
-               |${failedOutcomes.zipWithIndex.map { case (outcome, index) =>
-            hierarchy.nodeMap(outcome.nodeId) match {
+               |${failures.zipWithIndex.map { case (report, index) =>
+            hierarchy.nodeMap(report.nodeId) match {
               case test: TpTest => s"  ${index + 1}. ${test.fullName}"
               case _ => ???
             }
@@ -90,7 +92,7 @@ object TpConsoleRunnerApp extends zio.App {
         zlogger.error(s"${message -> "" -> null}")
       }.when(failedCount > 0)
       junitXml <- Task {
-        maybeReport match {
+        maybeRunReport match {
           case Some(report) =>
             TpJunitXmlExporter.toJunitXml(hierarchy, report)
           case None =>

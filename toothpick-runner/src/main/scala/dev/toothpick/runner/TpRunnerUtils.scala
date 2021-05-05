@@ -2,7 +2,7 @@ package dev.toothpick.runner
 
 import cats.data.NonEmptyList
 import dev.toothpick.proto.api._
-import dev.toothpick.reporter.TpReporter.TestFailureDetails
+import dev.toothpick.reporter.TpReporter.TestOutcome
 import dev.toothpick.runner.intellij.TpIntellijServiceMessageParser.TC_PREFIX
 
 import scala.annotation.tailrec
@@ -42,7 +42,7 @@ object TpRunnerUtils {
   final case class ReportStreamItem(
     nodes: List[TestNode],
     allDone: Boolean,
-    failure: Option[TestFailureDetails],
+    outcome: TestOutcome,
     durationMs: Long
   )
 

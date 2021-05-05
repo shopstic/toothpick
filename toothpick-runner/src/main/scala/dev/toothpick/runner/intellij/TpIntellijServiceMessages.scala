@@ -9,6 +9,7 @@ object TpIntellijServiceMessages {
     val TEST_STD_OUT = "testStdOut"
     val TEST_STD_ERR = "testStdErr"
     val TEST_FAILED = "testFailed"
+    val TEST_IGNORED = "testIgnored"
     val MESSAGE = "message"
     val TEST_COUNT = "testCount"
   }

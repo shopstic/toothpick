@@ -3,7 +3,7 @@ package dev.toothpick.reporter
 import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.toothpick.proto.api.TpTest
 import dev.toothpick.proto.api.ZioApi.TpApiClient
-import dev.toothpick.reporter.TpReporter.{TestOutcome, TestOutputLine}
+import dev.toothpick.reporter.TpReporter.{TestFailed, TestIgnored, TestOutputLine, TestPassed, TestReport}
 import dev.toothpick.runner.TpRunner.TpRunnerState
 import dev.toothpick.runner.TpRunnerUtils.{SuitePerProcessDistribution, TestPerProcessDistribution}
 import zio.clock.Clock
@@ -12,14 +12,9 @@ import zio.stream.{ZStream, ZTransducer}
 import zio.{Chunk, Schedule, UIO, ZIO}
 
 object TpConsoleReporter {
-  final case class TestReport(
-    outcome: TestOutcome,
-    outputs: Chunk[TestOutputLine]
-  )
-
   final case class RunReport(
     outputs: Map[Int, Chunk[TestOutputLine]] = Map.empty,
-    outcomes: Map[Int, TestOutcome] = Map.empty
+    reports: Map[Int, TestReport] = Map.empty
   )
 
   def report(
@@ -54,8 +49,8 @@ object TpConsoleReporter {
         .mergeAllUnbounded()(streams: _*)
         .scan(RunReport()) { (state, event) =>
           event match {
-            case outcome: TestOutcome =>
-              state.copy(outcomes = state.outcomes.updated(outcome.nodeId, outcome))
+            case outcome: TestReport =>
+              state.copy(reports = state.reports.updated(outcome.nodeId, outcome))
 
             case line: TestOutputLine =>
               state.copy(outputs =
@@ -65,11 +60,12 @@ object TpConsoleReporter {
         .aggregateAsyncWithin(ZTransducer.last, Schedule.fixed(1.second))
         .tap {
           case Some(state) =>
-            val completed = s"${state.outcomes.size}/$testCount"
-            val succeeded = state.outcomes.values.count(_.failure.isEmpty)
-            val failed = state.outcomes.values.count(_.failure.nonEmpty)
+            val completed = s"${state.reports.size}/$testCount"
+            val passed = state.reports.values.count(_.outcome == TestPassed)
+            val failed = state.reports.values.count(_.outcome.isInstanceOf[TestFailed])
+            val ignored = state.reports.values.count(_.outcome == TestIgnored)
 
-            zlogger.info(s"Run progress $completed $succeeded $failed")
+            zlogger.info(s"Run progress $completed $passed $failed $ignored")
           case _ =>
             ZIO.unit
         }

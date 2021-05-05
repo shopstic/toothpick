@@ -18,14 +18,17 @@ import java.time.Instant
 import java.util.UUID
 
 object TpReporter {
-  final case class TestFailureDetails(message: String, details: String)
+  sealed trait TestOutcome
+  case object TestPassed extends TestOutcome
+  case object TestIgnored extends TestOutcome
+  final case class TestFailed(message: String, details: String) extends TestOutcome
 
   sealed trait TpReporterEvent {
     def nodeId: Int
   }
-  final case class TestOutcome(
+  final case class TestReport(
     nodeId: Int,
-    failure: Option[TestFailureDetails],
+    outcome: TestOutcome,
     startTime: Instant,
     endTime: Instant,
     isLast: Boolean
@@ -84,7 +87,7 @@ object TpReporter {
     onlyLogIfFailed: Boolean
   ): URIO[TpApiClient with IzLogging, ZStream[Any, StatusRuntimeException, TpReporterEvent]] = {
     for {
-      reportedFailureRef <- Ref.make(Option.empty[TestFailureDetails])
+      reportedOutcomeRef <- Ref.make(Option.empty[TestOutcome])
       zlogger <- IzLogging.zioLogger
       testReportsStream <- watchTestReports(TpRunTestId(uuid, test.id))
       startMsRef <- Ref.make(Instant.now)
@@ -118,15 +121,19 @@ object TpReporter {
                 case Right(sm) =>
                   sm.name match {
                     case Names.TEST_FAILED =>
-                      reportedFailureRef
-                        .set(Some(TestFailureDetails(
+                      reportedOutcomeRef
+                        .set(Some(TestFailed(
                           message = unescape(sm.attributes.getOrElse(Attrs.MESSAGE, "")),
                           details = unescape(sm.attributes.getOrElse(Attrs.DETAILS, ""))
                         ))) *> noop
 
+                    case Names.TEST_IGNORED =>
+                      reportedOutcomeRef
+                        .set(Some(TestIgnored)) *> noop
+
                     case Names.MESSAGE if sm.attributes.get(Attrs.STATUS).contains("ERROR") =>
-                      reportedFailureRef
-                        .set(Some(TestFailureDetails(
+                      reportedOutcomeRef
+                        .set(Some(TestFailed(
                           message = unescape(sm.attributes.getOrElse(Attrs.TEXT, "")),
                           details = unescape(sm.attributes.getOrElse(Attrs.ERROR_DETAILS, ""))
                         ))) *> noop
@@ -157,21 +164,21 @@ object TpReporter {
                   case _ =>
                     noop
                 }
-                maybeReportedFailure <- reportedFailureRef
+                maybeReportedOutcome <- reportedOutcomeRef
                   .get
                   .map {
                     _.orElse(Option.when(exitCode != 0) {
-                      TestFailureDetails(
+                      TestFailed(
                         message = "",
                         details = ""
                       )
                     })
                   }
-                flushed <- if (maybeReportedFailure.nonEmpty) outputBuffer.takeAll else noop
+                flushed <- if (maybeReportedOutcome.nonEmpty) outputBuffer.takeAll else noop
               } yield {
-                events ++ flushed :+ TestOutcome(
+                events ++ flushed :+ TestReport(
                   nodeId = test.id,
-                  failure = maybeReportedFailure,
+                  outcome = maybeReportedOutcome.getOrElse(TestPassed),
                   startTime = startTime,
                   endTime = report.time,
                   isLast = true
@@ -183,9 +190,9 @@ object TpReporter {
                 startTime <- startMsRef.get
                 flushed <- outputBuffer.takeAll
               } yield {
-                Chunk.fromIterable(flushed) :+ TestOutcome(
+                Chunk.fromIterable(flushed) :+ TestReport(
                   nodeId = test.id,
-                  failure = Some(TestFailureDetails(s"Worker failed unexpectedly", message)),
+                  outcome = TestFailed(s"Worker failed unexpectedly", message),
                   startTime = startTime,
                   endTime = report.time,
                   isLast = true
@@ -197,9 +204,9 @@ object TpReporter {
                 startTime <- startMsRef.get
                 flushed <- outputBuffer.takeAll
               } yield {
-                Chunk.fromIterable(flushed) :+ TestOutcome(
+                Chunk.fromIterable(flushed) :+ TestReport(
                   nodeId = test.id,
-                  failure = Some(TestFailureDetails(s"Test was aborted", "")),
+                  outcome = TestFailed(s"Test was aborted", ""),
                   startTime = startTime,
                   endTime = report.time,
                   isLast = true
@@ -228,7 +235,7 @@ object TpReporter {
       zlogger <- IzLogging.zioLogger
       pendingTests <- ZRefM.make[List[TpTest]](tests.toList)
       startTimeRef <- zio.clock.instant.flatMap(Ref.make)
-      lastTestReportPromise <- zio.Promise.make[Nothing, TestOutcome]
+      lastTestReportPromise <- zio.Promise.make[Nothing, TestReport]
       testReportsStream <- watchTestReports(TpRunTestId(uuid, suite.id))
       hasFailedTestsRef <- Ref.make[Boolean](false)
       outputBuffer <- zio.Queue.unbounded[TestOutputLine]
@@ -242,19 +249,19 @@ object TpReporter {
         }
       }
 
-      def reportNext(maybeTestName: Option[String], maybeFailure: Option[TestFailureDetails], time: Instant) = {
+      def reportNext(maybeTestName: Option[String], outcome: TestOutcome, time: Instant) = {
         pendingTests.modify {
           case test :: tail =>
             for {
               startTime <- startTimeRef.getAndSet(time)
-              testOutcome = TestOutcome(
+              testOutcome = TestReport(
                 nodeId = test.id,
-                failure = maybeFailure,
+                outcome = outcome,
                 startTime = startTime,
                 endTime = time,
                 isLast = tail.isEmpty
               )
-              _ <- hasFailedTestsRef.update(yes => yes || maybeFailure.nonEmpty)
+              _ <- hasFailedTestsRef.update(yes => yes || outcome.isInstanceOf[TestFailed])
               _ <- maybeTestName match {
                 case Some(reportedName) if reportedName != test.name =>
                   ZIO.fail(new IllegalStateException(
@@ -278,12 +285,12 @@ object TpReporter {
         }
       }
 
-      def reportAllRemaining(failure: TestFailureDetails, time: Instant) = {
+      def reportAllRemaining(outcome: TestOutcome, time: Instant) = {
         pendingTests
           .get
           .flatMap { tests =>
             ZIO.foldLeft(tests)(Chunk[TpReporterEvent]()) { (accum, _) =>
-              reportNext(None, Some(failure), time)
+              reportNext(None, outcome, time)
                 .map(chunk => accum ++ chunk)
             }
           }
@@ -310,27 +317,34 @@ object TpReporter {
                     case Names.TEST_FINISHED =>
                       reportNext(
                         sm.attributes.get(Attrs.NAME).map(unescape),
-                        None,
+                        TestPassed,
                         time
                       )
 
                     case Names.TEST_FAILED =>
                       reportNext(
                         sm.attributes.get(Attrs.NAME),
-                        Some(TestFailureDetails(
+                        TestFailed(
                           message = unescape(sm.attributes.getOrElse(Names.MESSAGE, "")),
                           details = unescape(sm.attributes.getOrElse(Attrs.DETAILS, ""))
-                        )),
+                        ),
+                        time
+                      )
+
+                    case Names.TEST_IGNORED =>
+                      reportNext(
+                        sm.attributes.get(Attrs.NAME),
+                        TestIgnored,
                         time
                       )
 
                     case Names.MESSAGE if sm.attributes.get(Attrs.STATUS).contains("ERROR") =>
                       reportNext(
                         sm.attributes.get(Attrs.NAME),
-                        Some(TestFailureDetails(
+                        TestFailed(
                           message = unescape(sm.attributes.getOrElse(Attrs.TEXT, "")),
                           details = unescape(sm.attributes.getOrElse(Attrs.ERROR_DETAILS, ""))
-                        )),
+                        ),
                         time
                       )
 
@@ -347,7 +361,7 @@ object TpReporter {
             case TpTestResult(exitCode) =>
               for {
                 reports <- reportAllRemaining(
-                  TestFailureDetails(
+                  TestFailed(
                     message = "Runner process completed prematurely",
                     details = ""
                   ),
@@ -375,7 +389,7 @@ object TpReporter {
             case TpTestException(message) =>
               for {
                 reports <- reportAllRemaining(
-                  TestFailureDetails(
+                  TestFailed(
                     message = "Worker failed unexpectedly",
                     details = message
                   ),
@@ -390,7 +404,7 @@ object TpReporter {
             case _: TpTestAborted =>
               for {
                 reports <- reportAllRemaining(
-                  TestFailureDetails(
+                  TestFailed(
                     message = "Suite was aborted",
                     details = ""
                   ),

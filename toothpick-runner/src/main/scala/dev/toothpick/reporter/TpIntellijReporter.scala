@@ -3,7 +3,7 @@ package dev.toothpick.reporter
 import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.toothpick.proto.api.ZioApi.TpApiClient
 import dev.toothpick.proto.api.{TpTest, TpTestGroup, TpTestSuite}
-import dev.toothpick.reporter.TpReporter.{TestOutcome, TestOutputLine}
+import dev.toothpick.reporter.TpReporter.{TestFailed, TestIgnored, TestOutputLine, TestPassed, TestReport}
 import dev.toothpick.runner.TpRunner.TpRunnerState
 import dev.toothpick.runner.TpRunnerUtils.{ReportStreamItem, SuitePerProcessDistribution, TestPerProcessDistribution}
 import dev.toothpick.runner.intellij.TpIntellijServiceMessageRenderer.{render, renderStartEvent}
@@ -62,13 +62,13 @@ object TpIntellijReporter {
             case line: TestOutputLine =>
               currentState -> Left(line)
 
-            case outcome: TestOutcome =>
-              val (newState, toEmit) = TpTestHierarchy.trimTopDownNodeMap(currentState, outcome.nodeId)
+            case report: TestReport =>
+              val (newState, toEmit) = TpTestHierarchy.trimTopDownNodeMap(currentState, report.nodeId)
               newState -> Right(ReportStreamItem(
                 nodes = toEmit,
                 allDone = newState.topDownNodeMap.isEmpty,
-                failure = outcome.failure,
-                durationMs = outcome.endTime.toEpochMilli - outcome.startTime.toEpochMilli
+                outcome = report.outcome,
+                durationMs = report.endTime.toEpochMilli - report.startTime.toEpochMilli
               ))
           }
         }
@@ -82,28 +82,37 @@ object TpIntellijReporter {
               )
             ) :: Nil
 
-          case Right(ReportStreamItem(nodes, _, maybeFailure, durationMs)) =>
+          case Right(ReportStreamItem(nodes, _, outcome, durationMs)) =>
             nodes.map {
               case test: TpTest =>
-                maybeFailure match {
-                  case Some(failure) =>
+                outcome match {
+                  case TestFailed(message, details) =>
                     render(
                       Names.TEST_FAILED,
                       Map(
                         Attrs.NODE_ID -> test.id.toString,
-                        Attrs.MESSAGE -> failure.message, // will not work with Intellij if this property is missing altogether, but empty is fine
-                        Attrs.DETAILS -> failure.details,
+                        Attrs.MESSAGE -> message, // will not work with Intellij if this property is missing altogether, but empty is fine
+                        Attrs.DETAILS -> details,
                         Attrs.ERROR -> "true", // error will show as red vs. warning/orange on Intellij
                         Attrs.DURATION -> durationMs.toString
                       )
                     )
 
-                  case None =>
+                  case TestPassed =>
                     render(
                       Names.TEST_FINISHED,
                       Map(
                         Attrs.NODE_ID -> test.id.toString,
                         Attrs.DURATION -> durationMs.toString
+                      )
+                    )
+
+                  case TestIgnored =>
+                    render(
+                      Names.TEST_IGNORED,
+                      Map(
+                        Attrs.NODE_ID -> test.id.toString,
+                        Attrs.MESSAGE -> "Test ignored"
                       )
                     )
                 }

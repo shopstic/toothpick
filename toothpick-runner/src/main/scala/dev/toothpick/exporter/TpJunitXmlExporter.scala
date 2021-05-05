@@ -2,7 +2,7 @@ package dev.toothpick.exporter
 
 import dev.toothpick.proto.api.{TpTest, TpTestSuite}
 import dev.toothpick.reporter.TpConsoleReporter.RunReport
-import dev.toothpick.reporter.TpReporter.TestOutcome
+import dev.toothpick.reporter.TpReporter.{TestFailed, TestIgnored, TestPassed, TestReport}
 import dev.toothpick.reporter.TpTestHierarchy
 import dev.toothpick.runner.TpRunnerUtils.{ROOT_NODE_ID, TestNode, TestNodeOps}
 import zio.Chunk
@@ -16,6 +16,7 @@ object TpJunitXmlExporter {
     name: String,
     tests: Int,
     failures: Int,
+    disabled: Int,
     durationSeconds: Double
   )
 
@@ -28,7 +29,7 @@ object TpJunitXmlExporter {
     def updateSuiteMap(
       node: TestNode,
       map: Map[Int, JunitXmlTestSuite],
-      outcome: TestOutcome
+      report: TestReport
     ): Map[Int, JunitXmlTestSuite] = {
       val parentId = node.parentId
 
@@ -42,11 +43,12 @@ object TpJunitXmlExporter {
             name = parentNode.name,
             tests = 0,
             failures = 0,
+            disabled = 0,
             durationSeconds = 0d
           )
         )
 
-        val durationSeconds = (outcome.endTime.toEpochMilli - outcome.startTime.toEpochMilli).toDouble / 1000
+        val durationSeconds = (report.endTime.toEpochMilli - report.startTime.toEpochMilli).toDouble / 1000
 
         updateSuiteMap(
           node = parentNode,
@@ -54,11 +56,12 @@ object TpJunitXmlExporter {
             key = parentId,
             value = currentElement.copy(
               tests = currentElement.tests + 1,
-              failures = currentElement.failures + outcome.failure.fold(0)(_ => 1),
+              failures = currentElement.failures + (if (report.outcome.isInstanceOf[TestFailed]) 1 else 0),
+              disabled = currentElement.disabled + (if (report.outcome == TestIgnored) 1 else 0),
               durationSeconds = currentElement.durationSeconds + durationSeconds
             )
           ),
-          outcome = outcome
+          report = report
         )
       }
     }
@@ -73,12 +76,13 @@ object TpJunitXmlExporter {
 
     val suiteMap = allTests
       .foldLeft(Map.empty[Int, JunitXmlTestSuite]) { (map, test) =>
-        updateSuiteMap(test, map, runReport.outcomes(test.id))
+        updateSuiteMap(test, map, runReport.reports(test.id))
       }
 
     val totalTests = allTests.size
-    val totalFailures = runReport.outcomes.count(_._2.failure.nonEmpty)
-    val totalDurationSeconds = runReport.outcomes.map { case (_, outcome) =>
+    val totalFailures = runReport.reports.count(_._2.outcome.isInstanceOf[TestFailed])
+    val totalDisabled = runReport.reports.count(_._2.outcome == TestIgnored)
+    val totalDurationSeconds = runReport.reports.map { case (_, outcome) =>
       (outcome.endTime.toEpochMilli - outcome.startTime.toEpochMilli).toDouble / 1000
     }.sum
 
@@ -99,29 +103,29 @@ object TpJunitXmlExporter {
 
       node match {
         case test: TpTest =>
-          val outcome = runReport.outcomes(test.id)
-          val durationSeconds = (outcome.endTime.toEpochMilli - outcome.startTime.toEpochMilli).toDouble / 1000
+          val report = runReport.reports(test.id)
+          val durationSeconds = (report.endTime.toEpochMilli - report.startTime.toEpochMilli).toDouble / 1000
 
-          val failureElem = outcome.failure match {
-            case Some(failure) =>
-              <failure message={failure.message}>{failure.details}</failure>
-            case None =>
+          val outcomeElem = report.outcome match {
+            case TestFailed(message, details) =>
+              <failure message={message}>{details}</failure>
+            case TestIgnored =>
+              <skipped />
+            case TestPassed =>
               NodeSeq.Empty
           }
 
           <testcase name={test.fullName} classname={test.className} time={durationSeconds.toString}>
-            {failureElem}
+            {outcomeElem}
             {stdoutElem}
             {stderrElem}
           </testcase>
 
         case suite =>
           val meta = suiteMap(suite.id)
-          <testsuite id={meta.id.toString} name={meta.name} tests={meta.tests.toString} failures={
-            meta.failures.toString
-          } time={
-            meta.durationSeconds.toString
-          }>
+          <testsuite id={meta.id.toString} name={meta.name} 
+                     tests={meta.tests.toString} failures={meta.failures.toString} 
+                     disabled={meta.disabled.toString} time={meta.durationSeconds.toString}>
             {hierarchy.topDownNodeMap.getOrElse(suite.id, Set.empty).map(id => render(nodeMap(id)))}
             {stdoutElem}
             {stderrElem}
@@ -129,7 +133,8 @@ object TpJunitXmlExporter {
       }
     }
 
-    <testsuites tests={totalTests.toString} failures={totalFailures.toString} time={totalDurationSeconds.toString}>
+    <testsuites tests={totalTests.toString} failures={totalFailures.toString} 
+                disabled={totalDisabled.toString} time={totalDurationSeconds.toString}>
       {allSuites.map(render)}
     </testsuites>
   }
