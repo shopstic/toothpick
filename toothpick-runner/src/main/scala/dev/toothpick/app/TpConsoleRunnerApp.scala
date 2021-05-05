@@ -3,7 +3,7 @@ package dev.toothpick.app
 import dev.chopsticks.fp.config.{HoconConfig, TypedConfig}
 import dev.chopsticks.fp.iz_logging.{IzLogTemplates, IzLogging, IzLoggingRouter}
 import dev.chopsticks.fp.zio_ext.ZIOExtensions
-import dev.toothpick.reporter.TpReporterConfig
+import dev.toothpick.reporter.{TpConsoleReporter, TpReporterConfig}
 import dev.toothpick.runner.TpRunner.TpRunnerConfig
 import dev.toothpick.runner.TpRunnerApiClient.TpRunnerApiClientConfig
 import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser
@@ -64,7 +64,13 @@ object TpConsoleRunnerApp extends zio.App {
       appConfig <- TypedConfig.get[AppConfig]
       runnerState <- TpRunner.run(context, appConfig.runner)
       _ <- zlogger.info(s"Run has started with ${runnerState.runId}")
-      _ <- putStrLn(runnerState.runId.toString)
+      junitXml <- TpConsoleReporter.report(runnerState, appConfig.reporter)
+      _ <- putStrLn(
+        s"""
+           |<?xml version="1.0" encoding="UTF-8"?>
+           |${junitXml.toString}
+           |""".stripMargin
+      )
     } yield ExitCode(0)
 
     import zio.magic._
