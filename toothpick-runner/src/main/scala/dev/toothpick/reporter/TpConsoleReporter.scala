@@ -3,7 +3,7 @@ package dev.toothpick.reporter
 import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.toothpick.proto.api.TpTest
 import dev.toothpick.proto.api.ZioApi.TpApiClient
-import dev.toothpick.reporter.TpReporter.{TestFailed, TestIgnored, TestOutputLine, TestPassed, TestReport}
+import dev.toothpick.reporter.TpReporter.{TestIgnored, TestOutputLine, TestPassed, TestReport}
 import dev.toothpick.runner.TpRunner.TpRunnerState
 import dev.toothpick.runner.TpRunnerUtils.{SuitePerProcessDistribution, TestPerProcessDistribution}
 import zio.clock.Clock
@@ -62,7 +62,7 @@ object TpConsoleReporter {
           case Some(state) =>
             val completed = s"${state.reports.size}/$testCount"
             val passed = state.reports.values.count(_.outcome == TestPassed)
-            val failed = state.reports.values.count(_.outcome.isInstanceOf[TestFailed])
+            val failed = state.reports.values.count(_.outcome.isFailure)
             val ignored = state.reports.values.count(_.outcome == TestIgnored)
 
             zlogger.info(s"Run progress $completed $passed $failed $ignored")

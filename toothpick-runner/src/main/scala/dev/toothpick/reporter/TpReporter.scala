@@ -18,10 +18,14 @@ import java.time.Instant
 import java.util.UUID
 
 object TpReporter {
-  sealed trait TestOutcome
+  sealed trait TestOutcome {
+    def isFailure: Boolean = false
+  }
   case object TestPassed extends TestOutcome
   case object TestIgnored extends TestOutcome
-  final case class TestFailed(message: String, details: String) extends TestOutcome
+  final case class TestFailed(message: String, details: String) extends TestOutcome {
+    override val isFailure: Boolean = true
+  }
 
   sealed trait TpReporterEvent {
     def nodeId: Int
@@ -174,7 +178,7 @@ object TpReporter {
                       )
                     })
                   }
-                flushed <- if (maybeReportedOutcome.nonEmpty) outputBuffer.takeAll else noop
+                flushed <- if (maybeReportedOutcome.exists(_.isFailure)) outputBuffer.takeAll else noop
               } yield {
                 events ++ flushed :+ TestReport(
                   nodeId = test.id,
@@ -261,7 +265,7 @@ object TpReporter {
                 endTime = time,
                 isLast = tail.isEmpty
               )
-              _ <- hasFailedTestsRef.update(yes => yes || outcome.isInstanceOf[TestFailed])
+              _ <- hasFailedTestsRef.update(yes => yes || outcome.isFailure)
               _ <- maybeTestName match {
                 case Some(reportedName) if reportedName != test.name =>
                   ZIO.fail(new IllegalStateException(

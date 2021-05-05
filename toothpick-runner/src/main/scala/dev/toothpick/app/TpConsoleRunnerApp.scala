@@ -5,7 +5,6 @@ import dev.chopsticks.fp.iz_logging.{IzLogTemplates, IzLogging, IzLoggingRouter}
 import dev.chopsticks.fp.zio_ext.ZIOExtensions
 import dev.toothpick.exporter.TpJunitXmlExporter
 import dev.toothpick.proto.api.TpTest
-import dev.toothpick.reporter.TpReporter.TestFailed
 import dev.toothpick.reporter.{TpConsoleReporter, TpReporterConfig}
 import dev.toothpick.runner.TpRunner.TpRunnerConfig
 import dev.toothpick.runner.TpRunnerApiClient.TpRunnerApiClientConfig
@@ -70,7 +69,7 @@ object TpConsoleRunnerApp extends zio.App {
       result <- TpConsoleReporter.report(runnerState, appConfig.reporter)
       (hierarchy, maybeRunReport) = result
       failures =
-        maybeRunReport.map(_.reports.values.filter(_.outcome.isInstanceOf[TestFailed]).toList).getOrElse(List.empty)
+        maybeRunReport.map(_.reports.values.filter(_.outcome.isFailure).toList).getOrElse(List.empty)
       failedCount = failures.size
       _ <- {
         val message =

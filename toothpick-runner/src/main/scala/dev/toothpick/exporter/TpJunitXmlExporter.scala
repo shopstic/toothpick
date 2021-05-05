@@ -56,7 +56,7 @@ object TpJunitXmlExporter {
             key = parentId,
             value = currentElement.copy(
               tests = currentElement.tests + 1,
-              failures = currentElement.failures + (if (report.outcome.isInstanceOf[TestFailed]) 1 else 0),
+              failures = currentElement.failures + (if (report.outcome.isFailure) 1 else 0),
               disabled = currentElement.disabled + (if (report.outcome == TestIgnored) 1 else 0),
               durationSeconds = currentElement.durationSeconds + durationSeconds
             )
@@ -80,7 +80,7 @@ object TpJunitXmlExporter {
       }
 
     val totalTests = allTests.size
-    val totalFailures = runReport.reports.count(_._2.outcome.isInstanceOf[TestFailed])
+    val totalFailures = runReport.reports.count(_._2.outcome.isFailure)
     val totalDisabled = runReport.reports.count(_._2.outcome == TestIgnored)
     val totalDurationSeconds = runReport.reports.map { case (_, outcome) =>
       (outcome.endTime.toEpochMilli - outcome.startTime.toEpochMilli).toDouble / 1000
