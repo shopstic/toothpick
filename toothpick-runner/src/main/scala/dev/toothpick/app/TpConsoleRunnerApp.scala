@@ -66,8 +66,7 @@ object TpConsoleRunnerApp extends zio.App {
       _ <- zlogger.info(s"Run has started with ${runnerState.runId}")
       junitXml <- TpConsoleReporter.report(runnerState, appConfig.reporter)
       _ <- putStrLn(
-        s"""
-           |<?xml version="1.0" encoding="UTF-8"?>
+        s"""<?xml version="1.0" encoding="UTF-8"?>
            |${junitXml.toString}
            |""".stripMargin
       )
