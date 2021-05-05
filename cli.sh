@@ -50,7 +50,7 @@ EOF
 }
 
 ci_build() {
-  sbt --client 'set ThisBuild / scalacOptions ++= Seq("-opt:l:inline", "-opt-inline-from:**", "-opt:l:method", "-Werror")'
+  sbt --client 'set ThisBuild / scalacOptions += "-Werror"'
   sbt --client show ThisBuild / scalacOptions | tail -n4
   sbt --client cq
   sbt --client compile
