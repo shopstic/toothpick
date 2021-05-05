@@ -74,14 +74,14 @@ object TpRunner {
         .fork
 
       startingNodeId = 2
-      hierachy <- TpScalaTestDiscovery.discover(context, startingNodeId)
+      nodeMap <- TpScalaTestDiscovery.discover(context, startingNodeId)
         .log("discoverScalaTestSuites")
 
       effectiveNodeMap <- UIO {
-        if (config.duplicateCount.value == 0) hierachy
+        if (config.duplicateCount.value == 0) nodeMap
         else {
           (0 to config.duplicateCount.value).foldLeft(Map.empty[Int, TestNode]) { (accum, seq) =>
-            accum ++ TpRunnerUtils.duplicateNodeMap(hierachy, seq * hierachy.size + startingNodeId, seq + 1)
+            accum ++ TpRunnerUtils.duplicateNodeMap(nodeMap, seq * nodeMap.size + startingNodeId, seq + 1)
           }
         }
       }
@@ -126,7 +126,7 @@ object TpRunner {
         .log("Send run request to Toothpick Server")
 
     } yield {
-      TpRunnerState(runId = runResponse.runId, nodeMap = hierachy, distributions = distributions)
+      TpRunnerState(runId = runResponse.runId, nodeMap = effectiveNodeMap, distributions = distributions)
     }
   }
 
