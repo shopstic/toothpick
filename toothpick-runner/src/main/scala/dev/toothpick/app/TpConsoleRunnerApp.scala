@@ -7,13 +7,13 @@ import dev.toothpick.runner.TpRunner.TpRunnerConfig
 import dev.toothpick.runner.TpRunnerApiClient.TpRunnerApiClientConfig
 import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser
 import dev.toothpick.runner.{TpRunner, TpRunnerApiClient}
-import izumi.logstage.api.logger.{LogRouter, LogSink}
+import izumi.logstage.api.logger.LogSink
 import izumi.logstage.api.rendering.RenderingPolicy
 import izumi.logstage.api.routing.ConfigurableLogRouter
 import logstage.{ConsoleSink, Log}
 import pureconfig.ConfigConvert
 import zio.console.putStrLn
-import zio.{ExitCode, Task, URIO, ZLayer}
+import zio.{ExitCode, Task, ULayer, URIO, ZLayer}
 
 object TpConsoleRunnerApp extends zio.App {
   final case class AppConfig(
@@ -29,33 +29,32 @@ object TpConsoleRunnerApp extends zio.App {
     }
   }
 
+  val stderrLogRouterLayer: ULayer[IzLoggingRouter] = ZLayer.succeed((threshold: Log.Level, sinks: Seq[LogSink]) => {
+    val modifiedSinks = sinks.map { sink: LogSink =>
+      sink match {
+        case _: ConsoleSink =>
+          val renderingPolicy = RenderingPolicy.coloringPolicy(Some(IzLogTemplates.consoleLayout))
+          new LogSink {
+            override def flush(e: Log.Entry): Unit = {
+              System.err.println(renderingPolicy.render(e))
+            }
+
+            override def sync(): Unit = {
+              System.err.flush()
+            }
+          }
+        case sink => sink
+      }
+    }
+
+    ConfigurableLogRouter(threshold, modifiedSinks)
+  })
+
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
     val apiClientLayer = (for {
       appConfig <- TypedConfig.get[AppConfig].toManaged_
       client <- TpRunnerApiClient.managed(appConfig.apiClient)
     } yield client).toLayer
-
-    val logRouterLayer = ZLayer.succeed(new IzLoggingRouter.Service {
-      override def create(threshold: Log.Level, sinks: Seq[LogSink]): LogRouter = {
-        val modifiedSinks = sinks.map { sink: LogSink =>
-          sink match {
-            case _: ConsoleSink =>
-              val renderingPolicy = RenderingPolicy.coloringPolicy(Some(IzLogTemplates.consoleLayout))
-              new LogSink {
-                override def flush(e: Log.Entry): Unit = {
-                  System.err.println(renderingPolicy.render(e))
-                }
-                override def sync(): Unit = {
-                  System.err.flush()
-                }
-              }
-            case sink => sink
-          }
-        }
-
-        ConfigurableLogRouter(threshold, modifiedSinks)
-      }
-    })
 
     val main = for {
       zlogger <- IzLogging.zioLogger
@@ -73,7 +72,7 @@ object TpConsoleRunnerApp extends zio.App {
       .injectSome[zio.ZEnv](
         HoconConfig.live(Some(this.getClass)),
         TypedConfig.live[AppConfig](logLevel = Log.Level.Info),
-        logRouterLayer,
+        stderrLogRouterLayer,
         IzLogging.live(),
         apiClientLayer
       )

@@ -4,16 +4,16 @@ import dev.toothpick.runner.TpRunnerUtils.{ROOT_NODE_ID, TestNode}
 
 import scala.collection.immutable.Queue
 
-final case class TpReporterState(
+final case class TpTestHierarchy(
   nodeMap: Map[Int, TestNode],
   topDownNodeQueue: Queue[TestNode],
   topDownNodeMap: Map[Int, Set[Int]]
 )
 
-object TpReporterState {
+object TpTestHierarchy {
   import dev.toothpick.runner.TpRunnerUtils.TestNodeOps
 
-  def create(nodeMap: Map[Int, TestNode]): TpReporterState = {
+  def create(nodeMap: Map[Int, TestNode]): TpTestHierarchy = {
     val topDownMap = nodeMap
       .values
       .foldLeft(Map.empty[Int, Set[Int]]) { (pendingMap, node) =>
@@ -41,14 +41,14 @@ object TpReporterState {
 
     val topDownQueue = buildTopDownQueue(Queue.empty, 0)
 
-    TpReporterState(nodeMap = nodeMap, topDownNodeQueue = topDownQueue, topDownNodeMap = topDownMap)
+    TpTestHierarchy(nodeMap = nodeMap, topDownNodeQueue = topDownQueue, topDownNodeMap = topDownMap)
   }
 
-  def trimPendingMap(
-    state: TpReporterState,
+  def trimTopDownNodeMap(
+    state: TpTestHierarchy,
     id: Int,
     maybeChildId: Option[Int] = None
-  ): (TpReporterState, List[TestNode]) = {
+  ): (TpTestHierarchy, List[TestNode]) = {
     (state.topDownNodeMap.get(id), maybeChildId) match {
       case (Some(set), Some(childId)) if set.contains(childId) =>
         val newSet = set - childId
@@ -62,7 +62,7 @@ object TpReporterState {
             val parentId = node.parentId
 
             val (newState, emitList) =
-              trimPendingMap(state.copy(topDownNodeMap = state.topDownNodeMap - id), parentId, Some(id))
+              trimTopDownNodeMap(state.copy(topDownNodeMap = state.topDownNodeMap - id), parentId, Some(id))
             (newState, node :: emitList)
           }
         }
@@ -74,7 +74,7 @@ object TpReporterState {
         val node = state.nodeMap(id)
         val parentId = node.parentId
         val (newState, emitList) =
-          trimPendingMap(state.copy(topDownNodeMap = state.topDownNodeMap - id), parentId, Some(id))
+          trimTopDownNodeMap(state.copy(topDownNodeMap = state.topDownNodeMap - id), parentId, Some(id))
         (newState, node :: emitList)
 
       case _ =>

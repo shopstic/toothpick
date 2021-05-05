@@ -20,7 +20,7 @@ object TpIntellijReporter {
   ): ZIO[Console with TpApiClient with Clock with IzLogging, RuntimeException, Unit] = {
 
     for {
-      initialState <- UIO(TpReporterState.create(runnerState.nodeMap))
+      initialState <- UIO(TpTestHierarchy.create(runnerState.nodeMap))
 
       testCount = initialState.nodeMap.values.count {
         case _: TpTest => true
@@ -63,7 +63,7 @@ object TpIntellijReporter {
               currentState -> Left(line)
 
             case outcome: TestOutcome =>
-              val (newState, toEmit) = TpReporterState.trimPendingMap(currentState, outcome.nodeId)
+              val (newState, toEmit) = TpTestHierarchy.trimTopDownNodeMap(currentState, outcome.nodeId)
               newState -> Right(ReportStreamItem(
                 nodes = toEmit,
                 allDone = newState.topDownNodeMap.isEmpty,

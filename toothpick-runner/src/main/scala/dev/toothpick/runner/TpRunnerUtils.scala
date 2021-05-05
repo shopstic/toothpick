@@ -27,6 +27,12 @@ object TpRunnerUtils {
       case group: TpTestGroup => group.parentId
       case suite: TpTestSuite => suite.parentId
     }
+
+    def name: String = node match {
+      case test: TpTest => test.name
+      case group: TpTestGroup => group.name
+      case suite: TpTestSuite => suite.name
+    }
   }
 
   sealed trait TestDistribution

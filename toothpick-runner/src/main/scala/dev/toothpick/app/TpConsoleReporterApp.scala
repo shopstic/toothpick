@@ -1,7 +1,7 @@
 package dev.toothpick.app
 
 import dev.chopsticks.fp.config.{HoconConfig, TypedConfig}
-import dev.chopsticks.fp.iz_logging.{IzLogging, IzLoggingRouter}
+import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.fp.zio_ext.ZIOExtensions
 import dev.chopsticks.util.config.PureconfigLoader.PureconfigLoadFailure
 import dev.toothpick.reporter.TpConsoleReporter
@@ -10,6 +10,7 @@ import dev.toothpick.runner.TpRunnerApiClient.TpRunnerApiClientConfig
 import dev.toothpick.runner.{TpRunner, TpRunnerApiClient}
 import logstage.Log
 import pureconfig.ConfigConvert
+import zio.console.putStrLn
 import zio.{ExitCode, URIO, ZIO}
 
 import java.util.UUID
@@ -38,7 +39,13 @@ object TpConsoleReporterApp extends zio.App {
     val main = for {
       appConfig <- TypedConfig.get[AppConfig]
       runnerState <- TpRunner.fetchState(appConfig.runId)
-      _ <- TpConsoleReporter.report(runnerState, appConfig.reporter)
+      junitXml <- TpConsoleReporter.report(runnerState, appConfig.reporter)
+      _ <- putStrLn(
+        s"""
+          |<?xml version="1.0" encoding="UTF-8"?>
+          |${junitXml.toString}
+          |""".stripMargin
+      )
     } yield ExitCode(0)
 
     import zio.magic._
@@ -48,7 +55,7 @@ object TpConsoleReporterApp extends zio.App {
       .injectSome[zio.ZEnv](
         HoconConfig.live(Some(this.getClass)),
         TypedConfig.live[AppConfig](logLevel = Log.Level.Info),
-        IzLoggingRouter.live,
+        TpConsoleRunnerApp.stderrLogRouterLayer,
         IzLogging.live(),
         apiClientLayer
       )
