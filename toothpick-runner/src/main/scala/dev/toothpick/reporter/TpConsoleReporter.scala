@@ -21,8 +21,6 @@ import scala.annotation.tailrec
 import scala.xml.{Elem, NodeSeq}
 
 object TpConsoleReporter {
-  final case class TpConsoleReporterConfig(logOnlyFailed: Boolean)
-
   final case class TestReport(
     outcome: TestOutcome,
     outputs: Chunk[TestOutputLine]
@@ -156,7 +154,7 @@ object TpConsoleReporter {
 
   def report(
     runnerState: TpRunnerState,
-    reporterConfig: TpConsoleReporterConfig
+    reporterConfig: TpReporterConfig
   ): ZIO[TpApiClient with Clock with IzLogging, RuntimeException, Elem] = {
     for {
       zlogger <- IzLogging.zioLogger

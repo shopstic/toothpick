@@ -4,8 +4,7 @@ import dev.chopsticks.fp.config.{HoconConfig, TypedConfig}
 import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.fp.zio_ext.ZIOExtensions
 import dev.chopsticks.util.config.PureconfigLoader.PureconfigLoadFailure
-import dev.toothpick.reporter.TpConsoleReporter
-import dev.toothpick.reporter.TpConsoleReporter.TpConsoleReporterConfig
+import dev.toothpick.reporter.{TpConsoleReporter, TpReporterConfig}
 import dev.toothpick.runner.TpRunnerApiClient.TpRunnerApiClientConfig
 import dev.toothpick.runner.{TpRunner, TpRunnerApiClient}
 import logstage.Log
@@ -19,7 +18,7 @@ object TpConsoleReporterApp extends zio.App {
   final case class AppConfig(
     runId: UUID,
     apiClient: TpRunnerApiClientConfig,
-    reporter: TpConsoleReporterConfig
+    reporter: TpReporterConfig
   )
 
   object AppConfig {
