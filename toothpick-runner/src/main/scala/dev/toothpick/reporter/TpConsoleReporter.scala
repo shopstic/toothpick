@@ -192,8 +192,7 @@ object TpConsoleReporter {
                 state.outputs.updated(line.nodeId, state.outputs.getOrElse(line.nodeId, Chunk.empty) :+ line))
           }
         }
-        .aggregateAsync(ZTransducer.last)
-        .schedule(Schedule.fixed(1.second))
+        .aggregateAsyncWithin(ZTransducer.last, Schedule.fixed(1.second))
         .tap {
           case Some(state) =>
             val completed = s"${state.outcomes.size}/$testCount"
