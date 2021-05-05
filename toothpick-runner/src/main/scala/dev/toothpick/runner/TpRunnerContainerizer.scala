@@ -31,7 +31,7 @@ object TpRunnerContainerizer {
         import scala.jdk.CollectionConverters._
 
         val env = context.environment
-        val classpathFiles = env.classpath.map(File(_))
+        val classpathFiles = env.classpath.map(File(_)).filter(_.exists)
 
         val jarsLayerBuilder = FileEntriesLayer.builder()
         val classesLayerBuilder = FileEntriesLayer.builder()
