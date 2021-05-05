@@ -40,8 +40,7 @@ object TpConsoleReporterApp extends zio.App {
       runnerState <- TpRunner.fetchState(appConfig.runId)
       junitXml <- TpConsoleReporter.report(runnerState, appConfig.reporter)
       _ <- putStrLn(
-        s"""
-          |<?xml version="1.0" encoding="UTF-8"?>
+        s"""<?xml version="1.0" encoding="UTF-8"?>
           |${junitXml.toString}
           |""".stripMargin
       )

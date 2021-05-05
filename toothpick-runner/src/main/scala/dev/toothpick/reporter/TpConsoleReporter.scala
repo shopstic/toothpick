@@ -127,7 +127,7 @@ object TpConsoleReporter {
               NodeSeq.Empty
           }
 
-          <testcase name={test.name} classname={test.className} time={durationSeconds.toString}>
+          <testcase name={test.fullName} classname={test.className} time={durationSeconds.toString}>
             {failureElem}
             {stdoutElem}
             {stderrElem}
