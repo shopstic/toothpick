@@ -81,6 +81,7 @@ ci_prepare_runner_stage() {
   mv "${STAGE_PATH}/lib/dev.toothpick."* "${STAGE_PATH}/app-lib/"
   cp ./scripts/runner/runner.sh "${STAGE_PATH}/bin/runner.sh"
   cp ./scripts/runner/Dockerfile "${STAGE_PATH}/Dockerfile"
+  chmod +x "${STAGE_PATH}/bin/"*
 }
 
 proxy_jdk() {
