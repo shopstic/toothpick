@@ -3,6 +3,8 @@ package dev.toothpick.app
 import dev.chopsticks.fp.config.{HoconConfig, TypedConfig}
 import dev.chopsticks.fp.iz_logging.{IzLogTemplates, IzLogging, IzLoggingRouter}
 import dev.chopsticks.fp.zio_ext.ZIOExtensions
+import dev.toothpick.exporter.TpJunitXmlExporter
+import dev.toothpick.proto.api.TpTest
 import dev.toothpick.reporter.{TpConsoleReporter, TpReporterConfig}
 import dev.toothpick.runner.TpRunner.TpRunnerConfig
 import dev.toothpick.runner.TpRunnerApiClient.TpRunnerApiClientConfig
@@ -12,7 +14,7 @@ import izumi.logstage.api.logger.LogSink
 import izumi.logstage.api.rendering.RenderingPolicy
 import izumi.logstage.api.routing.ConfigurableLogRouter
 import logstage.{ConsoleSink, Log}
-import pureconfig.ConfigConvert
+import pureconfig.ConfigReader
 import zio.console.putStrLn
 import zio.{ExitCode, Task, ULayer, URIO, ZLayer}
 
@@ -25,9 +27,9 @@ object TpConsoleRunnerApp extends zio.App {
 
   object AppConfig {
     //noinspection TypeAnnotation
-    implicit lazy val configConvert = {
+    implicit lazy val configReader = {
       import dev.chopsticks.util.config.PureconfigConverters._
-      ConfigConvert[AppConfig]
+      ConfigReader[AppConfig]
     }
   }
 
@@ -64,7 +66,37 @@ object TpConsoleRunnerApp extends zio.App {
       appConfig <- TypedConfig.get[AppConfig]
       runnerState <- TpRunner.run(context, appConfig.runner)
       _ <- zlogger.info(s"Run has started with ${runnerState.runId}")
-      junitXml <- TpConsoleReporter.report(runnerState, appConfig.reporter)
+      result <- TpConsoleReporter.report(runnerState, appConfig.reporter)
+      (hierarchy, maybeReport) = result
+      failedOutcomes = maybeReport.map(_.outcomes.values.filter(_.failure.nonEmpty).toList).getOrElse(List.empty)
+      failedCount = failedOutcomes.size
+      _ <- {
+        val message =
+          s"""
+               |--------------------------------------------------------------------------------------------------------------
+               |The following ${failedCount} test${if (failedCount > 1) "s" else ""} failed:
+               |${failedOutcomes.zipWithIndex.map { case (outcome, index) =>
+            hierarchy.nodeMap(outcome.nodeId) match {
+              case test: TpTest => s"  ${index + 1}. ${test.fullName}"
+              case _ => ???
+            }
+          }.mkString("\n")}
+               |--------------------------------------------------------------------------------------------------------------
+               |Use this env variable to replay the report in Intellij:
+               | 
+               |TOOTHPICK_REPORT=${runnerState.runId}
+               |""".stripMargin
+
+        zlogger.error(s"${message -> "" -> null}")
+      }.when(failedCount > 0)
+      junitXml <- Task {
+        maybeReport match {
+          case Some(report) =>
+            TpJunitXmlExporter.toJunitXml(hierarchy, report)
+          case None =>
+            TpJunitXmlExporter.empty
+        }
+      }
       _ <- putStrLn(
         s"""<?xml version="1.0" encoding="UTF-8"?>
            |${junitXml.toString}
