@@ -61,7 +61,7 @@ lazy val runner = Build
   .settings(
     Compile / mainClass := Some("dev.toothpick.app.TpIntellijRunnerApp"),
     Compile / discoveredMainClasses := Seq.empty,
-    libraryDependencies ++= jibDeps ++ betterFilesDeps ++ cytodynamicsNucleusDeps ++
+    libraryDependencies ++= scalaXmlDeps ++ jibDeps ++ betterFilesDeps ++ cytodynamicsNucleusDeps ++
       quicklensDeps ++ fastparseDeps ++ pprintDeps ++ zioDeps ++ jsoniterDeps.map(m =>
         m.withConfigurations(m.configurations.map(_ + ",test").orElse(Some("test")))
       ),

@@ -70,6 +70,10 @@ object Dependencies {
     "com.lihaoyi" %% "pprint" % "0.6.5"
   )
 
+  lazy val scalaXmlDeps = Seq(
+    "org.scala-lang.modules" %% "scala-xml" % "1.3.0"
+  )
+
   lazy val scalapbRuntimeDeps = Seq(
     "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
     "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion
