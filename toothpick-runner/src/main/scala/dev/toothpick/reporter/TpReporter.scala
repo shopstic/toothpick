@@ -23,8 +23,13 @@ object TpReporter {
   sealed trait TpReporterEvent {
     def nodeId: Int
   }
-  final case class TestOutcome(nodeId: Int, failure: Option[TestFailureDetails], durationMs: Long, isLast: Boolean)
-      extends TpReporterEvent
+  final case class TestOutcome(
+    nodeId: Int,
+    failure: Option[TestFailureDetails],
+    startTime: Instant,
+    endTime: Instant,
+    isLast: Boolean
+  ) extends TpReporterEvent
   final case class TestOutputLine(nodeId: Int, pipe: TpTestOutputLine.Pipe, content: String) extends TpReporterEvent
 
   // This is to deal with the extra "\n" which the Intellij Scala plugin prepends to every single service message here:
@@ -164,12 +169,11 @@ object TpReporter {
                   }
                 flushed <- if (maybeReportedFailure.nonEmpty) outputBuffer.takeAll else noop
               } yield {
-                val elapsed = math.max(0, report.time.toEpochMilli - startTime.toEpochMilli)
-
                 events ++ flushed :+ TestOutcome(
                   nodeId = test.id,
                   failure = maybeReportedFailure,
-                  durationMs = elapsed,
+                  startTime = startTime,
+                  endTime = report.time,
                   isLast = true
                 )
               }
@@ -177,13 +181,13 @@ object TpReporter {
             case TpTestException(message) =>
               for {
                 startTime <- startMsRef.get
-                elapsed = math.max(0, report.time.toEpochMilli - startTime.toEpochMilli)
                 flushed <- outputBuffer.takeAll
               } yield {
                 Chunk.fromIterable(flushed) :+ TestOutcome(
                   nodeId = test.id,
                   failure = Some(TestFailureDetails(s"Worker failed unexpectedly", message)),
-                  durationMs = elapsed,
+                  startTime = startTime,
+                  endTime = report.time,
                   isLast = true
                 )
               }
@@ -191,13 +195,13 @@ object TpReporter {
             case _: TpTestAborted =>
               for {
                 startTime <- startMsRef.get
-                elapsed = math.max(0, report.time.toEpochMilli - startTime.toEpochMilli)
                 flushed <- outputBuffer.takeAll
               } yield {
                 Chunk.fromIterable(flushed) :+ TestOutcome(
                   nodeId = test.id,
                   failure = Some(TestFailureDetails(s"Test was aborted", "")),
-                  durationMs = elapsed,
+                  startTime = startTime,
+                  endTime = report.time,
                   isLast = true
                 )
               }
@@ -223,7 +227,7 @@ object TpReporter {
     for {
       zlogger <- IzLogging.zioLogger
       pendingTests <- ZRefM.make[List[TpTest]](tests.toList)
-      startInstantRef <- zio.clock.instant.flatMap(Ref.make)
+      startTimeRef <- zio.clock.instant.flatMap(Ref.make)
       lastTestReportPromise <- zio.Promise.make[Nothing, TestOutcome]
       testReportsStream <- watchTestReports(TpRunTestId(uuid, suite.id))
       hasFailedTestsRef <- Ref.make[Boolean](false)
@@ -242,11 +246,12 @@ object TpReporter {
         pendingTests.modify {
           case test :: tail =>
             for {
-              startInstant <- startInstantRef.getAndSet(time)
+              startTime <- startTimeRef.getAndSet(time)
               testOutcome = TestOutcome(
                 nodeId = test.id,
                 failure = maybeFailure,
-                durationMs = math.max(0, time.toEpochMilli - startInstant.toEpochMilli),
+                startTime = startTime,
+                endTime = time,
                 isLast = tail.isEmpty
               )
               _ <- hasFailedTestsRef.update(yes => yes || maybeFailure.nonEmpty)
@@ -291,7 +296,7 @@ object TpReporter {
           val task = report.event match {
             case TpTestStarted(workerId, workerNode) =>
               for {
-                _ <- startInstantRef.set(report.time)
+                _ <- startTimeRef.set(report.time)
                 _ <- zlogger.info(s"Suite assigned to $workerNode $workerId ${suite.name}")
               } yield Chunk.empty
 

@@ -120,7 +120,7 @@ final class TpScalaTestHierarchyExtractorImpl(loader: ClassLoader, traitName: St
           }
         }
 
-        val (hierarchy, lastId) = testNamesList
+        val (nodeMap, lastId) = testNamesList
           .foldLeft((Map.empty[Any, TestNode], seedId)) { case ((map, nextId), testName) =>
             if (testNameFilters.isEmpty || testNameFilters.exists(f => testName.contains(f))) {
               val leaf = testsMap(testName)
@@ -132,7 +132,7 @@ final class TpScalaTestHierarchyExtractorImpl(loader: ClassLoader, traitName: St
             }
           }
 
-        val result = hierarchy
+        val result = nodeMap
           .map { case (_, value) =>
             value.id -> value
           }

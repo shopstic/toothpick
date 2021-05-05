@@ -58,19 +58,19 @@ object TpRunnerUtils {
     }
   }
 
-  def createDistributions(hierarchy: Map[Int, TestNode])(distributeSuitePerProcess: TpTestSuite => Boolean)
+  def createDistributions(nodeMap: Map[Int, TestNode])(distributeSuitePerProcess: TpTestSuite => Boolean)
     : List[TestDistribution] = {
 
     @tailrec
     def findSuiteParent(node: TestNode): TpTestSuite = {
-      hierarchy(node.parentId) match {
+      nodeMap(node.parentId) match {
         case group: TpTestGroup => findSuiteParent(group)
         case suite: TpTestSuite => suite
         case _ => ???
       }
     }
 
-    val suiteToTestsMap = hierarchy
+    val suiteToTestsMap = nodeMap
       .values
       .collect { case test: TpTest => test }
       .foldLeft(Map.empty[TpTestSuite, NonEmptyList[TpTest]]) { (map, test) =>
@@ -94,12 +94,12 @@ object TpRunnerUtils {
     }
   }
 
-  def duplicateHierarchy(
-    hierarchy: Map[Int, TestNode],
+  def duplicateNodeMap(
+    nodeMap: Map[Int, TestNode],
     idOffset: Int,
     duplicateSeq: Int
   ): Map[Int, TestNode] = {
-    hierarchy
+    nodeMap
       .map { case (id, node) =>
         val newId = id + idOffset
         val newNode = node match {

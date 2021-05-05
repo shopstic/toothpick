@@ -28,14 +28,14 @@ object TpRunner {
 
   final case class TpRunnerState(
     runId: UUID,
-    hierarchy: Map[Int, TestNode],
+    nodeMap: Map[Int, TestNode],
     distributions: List[TestDistribution]
   )
 
   def fetchState(runId: UUID): ZIO[TpApiClient with MeasuredLogging, StatusRuntimeException, TpRunnerState] = {
 
     val task = for {
-      hierarchy <- TpApiClient
+      nodeMap <- TpApiClient
         .getHierarchy(TpGetHierarchyRequest(runId))
         .fold(Map.empty[Int, TestNode]) { (map, node) =>
           import TpRunnerUtils.TestNodeOps
@@ -46,12 +46,12 @@ object TpRunner {
               map
           }
         }
-        .log("getHierarchy")
+        .log("fetch nodes")
 
       suiteIds <- TpApiClient
         .getDistributions(TpGetDistributionsRequest(runId))
         .filter { distribution =>
-          hierarchy.get(distribution.testId) match {
+          nodeMap.get(distribution.testId) match {
             case Some(_: TpTestSuite) => true
             case _ => false
           }
@@ -59,10 +59,10 @@ object TpRunner {
         .map(_.testId)
         .runCollect
         .map(_.toSet)
-        .log("getDistributions")
+        .log("fetch distributions")
 
-      distributions = TpRunnerUtils.createDistributions(hierarchy)(suite => suiteIds.contains(suite.id))
-    } yield TpRunnerState(runId, hierarchy, distributions)
+      distributions = TpRunnerUtils.createDistributions(nodeMap)(suite => suiteIds.contains(suite.id))
+    } yield TpRunnerState(runId, nodeMap, distributions)
 
     task.mapError(_.asRuntimeException())
   }
@@ -77,11 +77,11 @@ object TpRunner {
       hierachy <- TpScalaTestDiscovery.discover(context, startingNodeId)
         .log("discoverScalaTestSuites")
 
-      effectiveHierarchy <- UIO {
+      effectiveNodeMap <- UIO {
         if (config.duplicateCount.value == 0) hierachy
         else {
           (0 to config.duplicateCount.value).foldLeft(Map.empty[Int, TestNode]) { (accum, seq) =>
-            accum ++ TpRunnerUtils.duplicateHierarchy(hierachy, seq * hierachy.size + startingNodeId, seq + 1)
+            accum ++ TpRunnerUtils.duplicateNodeMap(hierachy, seq * hierachy.size + startingNodeId, seq + 1)
           }
         }
       }
@@ -95,13 +95,13 @@ object TpRunner {
         }
       }
 
-      distributions = TpRunnerUtils.createDistributions(effectiveHierarchy) { suite =>
+      distributions = TpRunnerUtils.createDistributions(effectiveNodeMap) { suite =>
         !config.testPerProcessFileNameRegex.matches(suite.name)
       }
 
       runResponse <- TpApiClient
         .run(TpRunRequest(
-          effectiveHierarchy,
+          effectiveNodeMap,
           runOptions = distributions
             .map {
               case TestPerProcessDistribution(test) =>
@@ -126,7 +126,7 @@ object TpRunner {
         .log("Send run request to Toothpick Server")
 
     } yield {
-      TpRunnerState(runId = runResponse.runId, hierarchy = hierachy, distributions = distributions)
+      TpRunnerState(runId = runResponse.runId, nodeMap = hierachy, distributions = distributions)
     }
   }
 

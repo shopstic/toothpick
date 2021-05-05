@@ -5,16 +5,16 @@ import dev.toothpick.runner.TpRunnerUtils.{ROOT_NODE_ID, TestNode}
 import scala.collection.immutable.Queue
 
 final case class TpReporterState(
-  hierachy: Map[Int, TestNode],
-  topDownQueue: Queue[TestNode],
-  pendingMap: Map[Int, Set[Int]]
+  nodeMap: Map[Int, TestNode],
+  topDownNodeQueue: Queue[TestNode],
+  topDownNodeMap: Map[Int, Set[Int]]
 )
 
 object TpReporterState {
   import dev.toothpick.runner.TpRunnerUtils.TestNodeOps
 
-  def create(hierachy: Map[Int, TestNode]): TpReporterState = {
-    val topDownMap = hierachy
+  def create(nodeMap: Map[Int, TestNode]): TpReporterState = {
+    val topDownMap = nodeMap
       .values
       .foldLeft(Map.empty[Int, Set[Int]]) { (pendingMap, node) =>
         val id = node.id
@@ -31,7 +31,7 @@ object TpReporterState {
           queue
         }
         else {
-          queue.enqueue(hierachy(id))
+          queue.enqueue(nodeMap(id))
         }
 
       topDownMap(id).toVector.sorted.foldLeft(nextQueue) { (q, cid) =>
@@ -41,7 +41,7 @@ object TpReporterState {
 
     val topDownQueue = buildTopDownQueue(Queue.empty, 0)
 
-    TpReporterState(hierachy = hierachy, topDownQueue = topDownQueue, pendingMap = topDownMap)
+    TpReporterState(nodeMap = nodeMap, topDownNodeQueue = topDownQueue, topDownNodeMap = topDownMap)
   }
 
   def trimPendingMap(
@@ -49,31 +49,32 @@ object TpReporterState {
     id: Int,
     maybeChildId: Option[Int] = None
   ): (TpReporterState, List[TestNode]) = {
-    (state.pendingMap.get(id), maybeChildId) match {
+    (state.topDownNodeMap.get(id), maybeChildId) match {
       case (Some(set), Some(childId)) if set.contains(childId) =>
         val newSet = set - childId
 
         if (newSet.isEmpty) {
           if (id == ROOT_NODE_ID) {
-            state.copy(pendingMap = Map.empty) -> Nil
+            state.copy(topDownNodeMap = Map.empty) -> Nil
           }
           else {
-            val node = state.hierachy(id)
+            val node = state.nodeMap(id)
             val parentId = node.parentId
 
             val (newState, emitList) =
-              trimPendingMap(state.copy(pendingMap = state.pendingMap - id), parentId, Some(id))
+              trimPendingMap(state.copy(topDownNodeMap = state.topDownNodeMap - id), parentId, Some(id))
             (newState, node :: emitList)
           }
         }
         else {
-          state.copy(pendingMap = state.pendingMap.updated(id, newSet)) -> Nil
+          state.copy(topDownNodeMap = state.topDownNodeMap.updated(id, newSet)) -> Nil
         }
 
       case (Some(set), None) if set.isEmpty =>
-        val node = state.hierachy(id)
+        val node = state.nodeMap(id)
         val parentId = node.parentId
-        val (newState, emitList) = trimPendingMap(state.copy(pendingMap = state.pendingMap - id), parentId, Some(id))
+        val (newState, emitList) =
+          trimPendingMap(state.copy(topDownNodeMap = state.topDownNodeMap - id), parentId, Some(id))
         (newState, node :: emitList)
 
       case _ =>
