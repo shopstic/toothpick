@@ -163,6 +163,9 @@ spec:
               name: probe-tools
             - name: dind-certs-client
               mountPath: /certs/client
+            {{- with $Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           env:
             - name: NODE_NAME
               valueFrom:
@@ -222,7 +225,7 @@ spec:
         - name: dind-data
           persistentVolumeClaim:
             claimName: {{ $replicaName }}
-        {{- with $Values.dind.extraVolumes }}
+        {{- with $Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- with $Values.nodeSelector }}
