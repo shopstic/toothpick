@@ -1,6 +1,7 @@
 package dev.toothpick.pipeline
 
 import akka.stream.scaladsl.Source
+import com.apple.foundationdb.FDBException
 import com.apple.foundationdb.tuple.Versionstamp
 import dev.chopsticks.dstream.DstreamWorker
 import dev.chopsticks.dstream.DstreamWorker.{DstreamWorkerConfig, DstreamWorkerRetryConfig}
@@ -193,11 +194,20 @@ object TpExecutionPipeline {
           val logPersistenceFlow = state.api.batchTransact { batch: Vector[TpTestOutputLine] =>
             batch
               .foldLeft(state.api.transactionBuilder) { (tx, outputLine) =>
-                tx.put(
-                  state.keyspaces.reports,
-                  RunEventKey(runTestId, Versionstamp.incomplete(tx.nextVersion)),
-                  TpTestReport(Instant.now, outputLine)
-                )
+                try {
+                  tx.put(
+                    state.keyspaces.reports,
+                    RunEventKey(runTestId, Versionstamp.incomplete(tx.nextVersion)),
+                    TpTestReport(Instant.now, outputLine)
+                  )
+                }
+                catch {
+                  case e: FDBException =>
+                    logger.error(
+                      s"Failed putting outputLine with length ${outputLine.content.length}: ${outputLine.content}"
+                    )
+                    throw e
+                }
               }
               .result -> TpWorkerProgress(logLineCount = batch.size)
           }
