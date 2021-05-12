@@ -159,7 +159,7 @@ object TpReporter {
                 case TpTestOutputLinePart(content, pipe, isLast) =>
                   if (isLast) {
                     lineBuffer.takeAll.flatMap { parts =>
-                      val concatenated = (content :: parts).mkString
+                      val concatenated = parts.mkString("", "", content)
                       output(TestOutputLine(test.id, pipe, concatenated))
                     }
                   }
@@ -381,7 +381,7 @@ object TpReporter {
             case TpTestOutputLinePart(content, pipe, isLast) =>
               if (isLast) {
                 lineBuffer.takeAll.flatMap { parts =>
-                  val concatenated = (content :: parts).mkString
+                  val concatenated = parts.mkString("", "", content)
                   output(TestOutputLine(suite.id, pipe, concatenated))
                 }
               }
