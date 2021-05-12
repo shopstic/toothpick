@@ -1,7 +1,6 @@
 package dev.toothpick.pipeline
 
 import akka.stream.scaladsl.Source
-import com.apple.foundationdb.FDBException
 import com.apple.foundationdb.tuple.Versionstamp
 import dev.chopsticks.dstream.DstreamWorker
 import dev.chopsticks.dstream.DstreamWorker.{DstreamWorkerConfig, DstreamWorkerRetryConfig}
@@ -194,19 +193,35 @@ object TpExecutionPipeline {
           val logPersistenceFlow = state.api.batchTransact { batch: Vector[TpTestOutputLine] =>
             batch
               .foldLeft(state.api.transactionBuilder) { (tx, outputLine) =>
-                try {
+                val lineLength = outputLine.content.length
+
+                // FDB has a value length limit of 100,000 bytes.
+                // An encoded UTF-8 string can occupy at worst 2 bytes per code point.
+                // Hence we're splitting when a line is longer than 45000 code points, to be safe
+                if (lineLength > 45000) {
+                  val partCount = math.ceil(lineLength.toDouble / 45000).toInt
+
+                  outputLine
+                    .content
+                    .grouped(partCount)
+                    .zipWithIndex
+                    .foldLeft(tx) { case (t, (part, index)) =>
+                      t.put(
+                        state.keyspaces.reports,
+                        RunEventKey(runTestId, Versionstamp.incomplete(t.nextVersion)),
+                        TpTestReport(
+                          Instant.now,
+                          TpTestOutputLinePart(part, outputLine.pipe, isLast = index == partCount - 1)
+                        )
+                      )
+                    }
+                }
+                else {
                   tx.put(
                     state.keyspaces.reports,
                     RunEventKey(runTestId, Versionstamp.incomplete(tx.nextVersion)),
                     TpTestReport(Instant.now, outputLine)
                   )
-                }
-                catch {
-                  case e: FDBException =>
-                    logger.error(
-                      s"Failed putting outputLine with length ${outputLine.content.length}: ${outputLine.content}"
-                    )
-                    throw e
                 }
               }
               .result -> TpWorkerProgress(logLineCount = batch.size)

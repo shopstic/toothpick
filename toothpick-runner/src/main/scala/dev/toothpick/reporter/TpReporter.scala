@@ -95,6 +95,7 @@ object TpReporter {
       zlogger <- IzLogging.zioLogger
       testReportsStream <- watchTestReports(TpRunTestId(uuid, test.id))
       startMsRef <- Ref.make(Instant.now)
+      lineBuffer <- zio.Queue.unbounded[String]
       outputBuffer <- zio.Queue.unbounded[TestOutputLine]
     } yield {
       val noop: UIO[Chunk[TpReporterEvent]] = ZIO.succeed(Chunk.empty)
@@ -111,110 +112,124 @@ object TpReporter {
       testReportsStream
         .mapM { report =>
           val task: UIO[Chunk[TpReporterEvent]] = report.event match {
-            case TpTestStarted(workerId, workerNode) =>
-              for {
-                _ <- startMsRef.set(report.time)
-                _ <- zlogger.info(s"Test assigned to $workerNode $workerId ${test.fullName}")
-              } yield Chunk.empty
+            case nonEmptyEvent: TpTestEvent.NonEmpty =>
+              nonEmptyEvent match {
+                case TpTestStarted(workerId, workerNode) =>
+                  for {
+                    _ <- startMsRef.set(report.time)
+                    _ <- zlogger.info(s"Test assigned to $workerNode $workerId ${test.fullName}")
+                  } yield Chunk.empty
 
-            case TpImagePullingStarted(workerNode, image) =>
-              zlogger.info(s"$workerNode is pulling $image") *> noop
+                case TpImagePullingStarted(workerNode, image) =>
+                  zlogger.info(s"$workerNode is pulling $image") *> noop
 
-            case MatchesTeamCityServiceMessageEvent(content) =>
-              TpIntellijServiceMessageParser.parse(content) match {
-                case Right(sm) =>
-                  sm.name match {
-                    case Names.TEST_FAILED =>
-                      reportedOutcomeRef
-                        .set(Some(TestFailed(
-                          message = unescape(sm.attributes.getOrElse(Attrs.MESSAGE, "")),
-                          details = unescape(sm.attributes.getOrElse(Attrs.DETAILS, ""))
-                        ))) *> noop
+                case MatchesTeamCityServiceMessageEvent(content) =>
+                  TpIntellijServiceMessageParser.parse(content) match {
+                    case Right(sm) =>
+                      sm.name match {
+                        case Names.TEST_FAILED =>
+                          reportedOutcomeRef
+                            .set(Some(TestFailed(
+                              message = unescape(sm.attributes.getOrElse(Attrs.MESSAGE, "")),
+                              details = unescape(sm.attributes.getOrElse(Attrs.DETAILS, ""))
+                            ))) *> noop
 
-                    case Names.TEST_IGNORED =>
-                      reportedOutcomeRef
-                        .set(Some(TestIgnored)) *> noop
+                        case Names.TEST_IGNORED =>
+                          reportedOutcomeRef
+                            .set(Some(TestIgnored)) *> noop
 
-                    case Names.MESSAGE if sm.attributes.get(Attrs.STATUS).contains("ERROR") =>
-                      reportedOutcomeRef
-                        .set(Some(TestFailed(
-                          message = unescape(sm.attributes.getOrElse(Attrs.TEXT, "")),
-                          details = unescape(sm.attributes.getOrElse(Attrs.ERROR_DETAILS, ""))
-                        ))) *> noop
+                        case Names.MESSAGE if sm.attributes.get(Attrs.STATUS).contains("ERROR") =>
+                          reportedOutcomeRef
+                            .set(Some(TestFailed(
+                              message = unescape(sm.attributes.getOrElse(Attrs.TEXT, "")),
+                              details = unescape(sm.attributes.getOrElse(Attrs.ERROR_DETAILS, ""))
+                            ))) *> noop
 
-                    case _ =>
-                      noop
+                        case _ =>
+                          noop
+                      }
+
+                    case Left(reason) =>
+                      zlogger.warn(s"Failed parsing service message $content $reason") *> noop
                   }
 
-                case Left(reason) =>
-                  zlogger.warn(s"Failed parsing service message $content $reason") *> noop
-              }
+                case TpTestOutputLine(content, pipe) =>
+                  output(TestOutputLine(test.id, pipe, content))
 
-            case TpTestOutputLine(content, pipe) =>
-              output(TestOutputLine(test.id, pipe, content))
-
-            case TpTestResult(exitCode) =>
-              for {
-                startTime <- startMsRef.get
-                events <- exitCode match {
-                  case 124 =>
-                    output(TestOutputLine(
-                      test.id,
-                      Pipe.STDERR,
-                      "Test run process took too long and was interrupted with SIGTERM"
-                    ))
-                  case 137 =>
-                    output(TestOutputLine(test.id, Pipe.STDERR, "Test run process received SIGKILL"))
-                  case _ =>
-                    noop
-                }
-                maybeReportedOutcome <- reportedOutcomeRef
-                  .get
-                  .map {
-                    _.orElse(Option.when(exitCode != 0) {
-                      TestFailed(
-                        message = "",
-                        details = ""
-                      )
-                    })
+                case TpTestOutputLinePart(content, pipe, isLast) =>
+                  if (isLast) {
+                    lineBuffer.takeAll.flatMap { parts =>
+                      val concatenated = (content :: parts).mkString
+                      output(TestOutputLine(test.id, pipe, concatenated))
+                    }
                   }
-                flushed <- if (maybeReportedOutcome.exists(_.isFailure)) outputBuffer.takeAll else noop
-              } yield {
-                events ++ flushed :+ TestReport(
-                  nodeId = test.id,
-                  outcome = maybeReportedOutcome.getOrElse(TestPassed),
-                  startTime = startTime,
-                  endTime = report.time,
-                  isLast = true
-                )
-              }
+                  else {
+                    lineBuffer.offer(content) *> noop
+                  }
 
-            case TpTestException(message) =>
-              for {
-                startTime <- startMsRef.get
-                flushed <- outputBuffer.takeAll
-              } yield {
-                Chunk.fromIterable(flushed) :+ TestReport(
-                  nodeId = test.id,
-                  outcome = TestFailed(s"Worker failed unexpectedly", message),
-                  startTime = startTime,
-                  endTime = report.time,
-                  isLast = true
-                )
-              }
+                case TpTestResult(exitCode) =>
+                  for {
+                    startTime <- startMsRef.get
+                    events <- exitCode match {
+                      case 124 =>
+                        output(TestOutputLine(
+                          test.id,
+                          Pipe.STDERR,
+                          "Test run process took too long and was interrupted with SIGTERM"
+                        ))
+                      case 137 =>
+                        output(TestOutputLine(test.id, Pipe.STDERR, "Test run process received SIGKILL"))
+                      case _ =>
+                        noop
+                    }
+                    maybeReportedOutcome <- reportedOutcomeRef
+                      .get
+                      .map {
+                        _.orElse(Option.when(exitCode != 0) {
+                          TestFailed(
+                            message = "",
+                            details = ""
+                          )
+                        })
+                      }
+                    flushed <- if (maybeReportedOutcome.exists(_.isFailure)) outputBuffer.takeAll else noop
+                  } yield {
+                    events ++ flushed :+ TestReport(
+                      nodeId = test.id,
+                      outcome = maybeReportedOutcome.getOrElse(TestPassed),
+                      startTime = startTime,
+                      endTime = report.time,
+                      isLast = true
+                    )
+                  }
 
-            case _: TpTestAborted =>
-              for {
-                startTime <- startMsRef.get
-                flushed <- outputBuffer.takeAll
-              } yield {
-                Chunk.fromIterable(flushed) :+ TestReport(
-                  nodeId = test.id,
-                  outcome = TestFailed(s"Test was aborted", ""),
-                  startTime = startTime,
-                  endTime = report.time,
-                  isLast = true
-                )
+                case TpTestException(message) =>
+                  for {
+                    startTime <- startMsRef.get
+                    flushed <- outputBuffer.takeAll
+                  } yield {
+                    Chunk.fromIterable(flushed) :+ TestReport(
+                      nodeId = test.id,
+                      outcome = TestFailed(s"Worker failed unexpectedly", message),
+                      startTime = startTime,
+                      endTime = report.time,
+                      isLast = true
+                    )
+                  }
+
+                case _: TpTestAborted =>
+                  for {
+                    startTime <- startMsRef.get
+                    flushed <- outputBuffer.takeAll
+                  } yield {
+                    Chunk.fromIterable(flushed) :+ TestReport(
+                      nodeId = test.id,
+                      outcome = TestFailed(s"Test was aborted", ""),
+                      startTime = startTime,
+                      endTime = report.time,
+                      isLast = true
+                    )
+                  }
               }
 
             case TpTestEvent.Empty =>
@@ -242,6 +257,7 @@ object TpReporter {
       lastTestReportPromise <- zio.Promise.make[Nothing, TestReport]
       testReportsStream <- watchTestReports(TpRunTestId(uuid, suite.id))
       hasFailedTestsRef <- Ref.make[Boolean](false)
+      lineBuffer <- zio.Queue.unbounded[String]
       outputBuffer <- zio.Queue.unbounded[TestOutputLine]
     } yield {
       def output(line: TestOutputLine): UIO[Chunk[TestOutputLine]] = {
@@ -361,6 +377,17 @@ object TpReporter {
 
             case TpTestOutputLine(content, pipe) =>
               output(TestOutputLine(suite.id, pipe, content))
+
+            case TpTestOutputLinePart(content, pipe, isLast) =>
+              if (isLast) {
+                lineBuffer.takeAll.flatMap { parts =>
+                  val concatenated = (content :: parts).mkString
+                  output(TestOutputLine(suite.id, pipe, concatenated))
+                }
+              }
+              else {
+                lineBuffer.offer(content) *> noop
+              }
 
             case TpTestResult(exitCode) =>
               for {

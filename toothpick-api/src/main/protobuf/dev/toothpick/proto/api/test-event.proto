@@ -10,6 +10,7 @@ message TpTestEvent {
     TpTestAborted aborted = 5;
     TpTestException exception = 6;
     TpImagePullingStarted image_pulling_started = 7;
+    TpTestOutputLinePart outputLinePart = 8;
   }
 }
 
@@ -21,6 +22,12 @@ message TpImagePullingStarted {
 message TpTestStarted {
   string workerId = 2;
   string workerNode = 23;
+}
+
+message TpTestOutputLinePart {
+  string content = 1;
+  TpTestOutputLine.Pipe pipe = 2;
+  bool isLast = 3;
 }
 
 message TpTestOutputLine {
