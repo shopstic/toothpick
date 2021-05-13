@@ -147,165 +147,166 @@ object TpExecutionPipeline {
         .runDrain
         .fork
       nodeName = sys.env.get("NODE_NAME").orElse(sys.env.get("HOSTNAME")).getOrElse("unknown")
-
-      pullAssignmentImage = (image: String, onStarted: Task[Unit]) => {
-        for {
-          pullState <- STM.atomically {
-            for {
-              maybePromise <- tmap.get(image)
-              ret <- maybePromise match {
-                case Some(promise) =>
-                  STM.succeed(promise -> true)
-                case None =>
-                  TPromise
-                    .make[ImagePullFailure, String]
-                    .tap(tmap.put(image, _))
-                    .map(p => p -> false)
-              }
-            } yield ret
-          }
-          (pulledPromise, hasBeenPulled) = pullState
-          _ <- (onStarted *> pullImage(config.dockerPath, image)
-            .foldM(
-              failure => STM.atomically(pulledPromise.fail(failure) *> tmap.delete(image)),
-              imageId => STM.atomically(pulledPromise.succeed(imageId) *> ttlQueue.offer(image -> Instant.now))
-            )
-            .logResult(s"Pull $image", _.toString))
-            .when(!hasBeenPulled)
-          imageId <- pulledPromise.await.commit
-        } yield imageId
-      }
-
-      runAssignment = (runTestId: TpRunTestId, args: Seq[String]) => {
-        for {
-          state <- TpState.get
-          runtime <- ZIO.runtime[Blocking]
-          dispatcher <- AkkaEnv.dispatcher
-          logger <- IzLogging.logger
-          process <- Command(config.dockerPath, args: _*).run
-        } yield {
-          import zio.interop.reactivestreams._
-
-          val exitCodeFuture = runtime.unsafeRunToFuture(process.exitCode)
-          val exitCodeSource = Source.future(exitCodeFuture)
-            .map(c => TpWorkerResult(c.code))
-
-          val logPersistenceFlow = state.api.batchTransact { batch: Vector[TpTestOutputLine] =>
-            batch
-              .foldLeft(state.api.transactionBuilder) { (tx, outputLine) =>
-                val lineLength = outputLine.content.length
-
-                // FDB has a value length limit of 100,000 bytes.
-                // An encoded UTF-8 string can occupy at worst 2 bytes per code point.
-                // Hence we're splitting when a line is longer than 45000 code points, to be safe
-                if (lineLength > 45000) {
-                  val partCount = math.ceil(lineLength.toDouble / 45000).toInt
-
-                  outputLine
-                    .content
-                    .grouped(partCount)
-                    .zipWithIndex
-                    .foldLeft(tx) { case (t, (part, index)) =>
-                      t.put(
-                        state.keyspaces.reports,
-                        RunEventKey(runTestId, Versionstamp.incomplete(t.nextVersion)),
-                        TpTestReport(
-                          Instant.now,
-                          TpTestOutputLinePart(part, outputLine.pipe, isLast = index == partCount - 1)
-                        )
-                      )
-                    }
+      _ <- {
+        def pullAssignmentImage(image: String, onStarted: Task[Unit]) = {
+          for {
+            pullState <- STM.atomically {
+              for {
+                maybePromise <- tmap.get(image)
+                ret <- maybePromise match {
+                  case Some(promise) =>
+                    STM.succeed(promise -> true)
+                  case None =>
+                    TPromise
+                      .make[ImagePullFailure, String]
+                      .tap(tmap.put(image, _))
+                      .map(p => p -> false)
                 }
-                else {
-                  tx.put(
-                    state.keyspaces.reports,
-                    RunEventKey(runTestId, Versionstamp.incomplete(tx.nextVersion)),
-                    TpTestReport(Instant.now, outputLine)
-                  )
-                }
-              }
-              .result -> TpWorkerProgress(logLineCount = batch.size)
-          }
-
-          val stdoutSource = Source.fromPublisher(runtime.unsafeRun(process.stdout.linesStream.toPublisher))
-            .map(TpTestOutputLine(_, TpTestOutputLine.Pipe.STDOUT))
-            .via(logPersistenceFlow)
-
-          val stderrSource = Source.fromPublisher(runtime.unsafeRun(process.stderr.linesStream.toPublisher))
-            .map(TpTestOutputLine(_, TpTestOutputLine.Pipe.STDERR))
-            .via(logPersistenceFlow)
-
-          Source
-            .single(TpWorkerStarted())
-            .concat(
-              stdoutSource
-                .merge(stderrSource)
-                .conflate((a, b) => TpWorkerProgress(logLineCount = a.logLineCount + b.logLineCount))
-                .throttle(1, 100.millis)
-            )
-            .concat(exitCodeSource)
-            .map(TpWorkerReport(Instant.now, _))
-            .watchTermination() { (notUsed, f) =>
-              implicit val ec: ExecutionContextExecutor = dispatcher
-
-              val _ = f.transformWith { _ =>
-                if (!exitCodeFuture.isCompleted) {
-                  logger.warn(s"Aborting $runTestId")
-                  exitCodeFuture.cancel().map(_ => ())
-                }
-                else {
-                  Future.successful(())
-                }
-              }
-              notUsed
+              } yield ret
             }
+            (pulledPromise, hasBeenPulled) = pullState
+            _ <- (onStarted *> pullImage(config.dockerPath, image)
+              .foldM(
+                failure => STM.atomically(pulledPromise.fail(failure) *> tmap.delete(image)),
+                imageId => STM.atomically(pulledPromise.succeed(imageId) *> ttlQueue.offer(image -> Instant.now))
+              )
+              .logResult(s"Pull $image", _.toString))
+              .when(!hasBeenPulled)
+            imageId <- pulledPromise.await.commit
+          } yield imageId
         }
-      }
 
-      _ <- worker
-        .run(config.worker) { (workerId, assignment) =>
-          val runTestId = TpRunTestId(assignment.runId, assignment.testId)
-
+        def runAssignment(runTestId: TpRunTestId, args: Seq[String]) = {
           for {
             state <- TpState.get
-            reportsKeyspace = state.api.columnFamily(state.keyspaces.reports)
-            _ <- reportsKeyspace.putTask(
-              RunEventKey(runTestId, Versionstamp.incomplete()),
-              TpTestReport(Instant.now, TpTestStarted(workerId.toString, nodeName))
-            )
-            source <- pullAssignmentImage(
-              assignment.image, {
-                reportsKeyspace.putTask(
-                  RunEventKey(runTestId, Versionstamp.incomplete()),
-                  TpTestReport(
-                    Instant.now,
-                    TpImagePullingStarted(workerNode = nodeName, imageRef = assignment.image)
-                  )
-                )
-              }
-            )
-              .foldM(
-                pullFailure =>
-                  ZIO.succeed(Source.single(
-                    TpWorkerReport(
-                      Instant.now,
-                      TpWorkerException(
-                        s"Failed fulling image '${assignment.image}', reason: ${pullFailure.toString}"
-                      )
+            runtime <- ZIO.runtime[Blocking]
+            dispatcher <- AkkaEnv.dispatcher
+            logger <- IzLogging.logger
+            process <- Command(config.dockerPath, args: _*).run
+          } yield {
+            import zio.interop.reactivestreams._
+
+            val exitCodeFuture = runtime.unsafeRunToFuture(process.exitCode)
+            val exitCodeSource = Source.future(exitCodeFuture)
+              .map(c => TpWorkerResult(c.code))
+
+            val logPersistenceFlow = state.api.batchTransact { batch: Vector[TpTestOutputLine] =>
+              batch
+                .foldLeft(state.api.transactionBuilder) { (tx, outputLine) =>
+                  val lineLength = outputLine.content.length
+
+                  // FDB has a value length limit of 100,000 bytes.
+                  // An encoded UTF-8 string can occupy at worst 2 bytes per code point.
+                  // Hence we're splitting when a line is longer than 45000 code points, to be safe
+                  if (lineLength > 45000) {
+                    val partCount = math.ceil(lineLength.toDouble / 45000).toInt
+
+                    outputLine
+                      .content
+                      .grouped(partCount)
+                      .zipWithIndex
+                      .foldLeft(tx) { case (t, (part, index)) =>
+                        t.put(
+                          state.keyspaces.reports,
+                          RunEventKey(runTestId, Versionstamp.incomplete(t.nextVersion)),
+                          TpTestReport(
+                            Instant.now,
+                            TpTestOutputLinePart(part, outputLine.pipe, isLast = index == partCount - 1)
+                          )
+                        )
+                      }
+                  }
+                  else {
+                    tx.put(
+                      state.keyspaces.reports,
+                      RunEventKey(runTestId, Versionstamp.incomplete(tx.nextVersion)),
+                      TpTestReport(Instant.now, outputLine)
                     )
-                  )),
-                imageId =>
-                  runAssignment(runTestId, (config.dockerRunArgs.map(_.value) :+ imageId) ++ assignment.args)
-                    .catchAll(commandError =>
-                      ZIO.succeed(Source.single(
-                        TpWorkerReport(Instant.now, TpWorkerException(s"Run error: ${commandError.toString}"))
-                      ))
-                    )
+                  }
+                }
+                .result -> TpWorkerProgress(logLineCount = batch.size)
+            }
+
+            val stdoutSource = Source.fromPublisher(runtime.unsafeRun(process.stdout.linesStream.toPublisher))
+              .map(TpTestOutputLine(_, TpTestOutputLine.Pipe.STDOUT))
+              .via(logPersistenceFlow)
+
+            val stderrSource = Source.fromPublisher(runtime.unsafeRun(process.stderr.linesStream.toPublisher))
+              .map(TpTestOutputLine(_, TpTestOutputLine.Pipe.STDERR))
+              .via(logPersistenceFlow)
+
+            Source
+              .single(TpWorkerStarted())
+              .concat(
+                stdoutSource
+                  .merge(stderrSource)
+                  .conflate((a, b) => TpWorkerProgress(logLineCount = a.logLineCount + b.logLineCount))
+                  .throttle(1, 100.millis)
               )
-          } yield source
-        } {
-          createRetrySchedule(_, config.retry)
+              .concat(exitCodeSource)
+              .map(TpWorkerReport(Instant.now, _))
+              .watchTermination() { (notUsed, f) =>
+                implicit val ec: ExecutionContextExecutor = dispatcher
+
+                val _ = f.transformWith { _ =>
+                  if (!exitCodeFuture.isCompleted) {
+                    logger.warn(s"Aborting $runTestId")
+                    exitCodeFuture.cancel().map(_ => ())
+                  }
+                  else {
+                    Future.successful(())
+                  }
+                }
+                notUsed
+              }
+          }
         }
+
+        worker
+          .run(config.worker) { (workerId, assignment) =>
+            val runTestId = TpRunTestId(assignment.runId, assignment.testId)
+
+            for {
+              state <- TpState.get
+              reportsKeyspace = state.api.columnFamily(state.keyspaces.reports)
+              _ <- reportsKeyspace.putTask(
+                RunEventKey(runTestId, Versionstamp.incomplete()),
+                TpTestReport(Instant.now, TpTestStarted(workerId.toString, nodeName))
+              )
+              source <- pullAssignmentImage(
+                assignment.image, {
+                  reportsKeyspace.putTask(
+                    RunEventKey(runTestId, Versionstamp.incomplete()),
+                    TpTestReport(
+                      Instant.now,
+                      TpImagePullingStarted(workerNode = nodeName, imageRef = assignment.image)
+                    )
+                  )
+                }
+              )
+                .foldM(
+                  pullFailure =>
+                    ZIO.succeed(Source.single(
+                      TpWorkerReport(
+                        Instant.now,
+                        TpWorkerException(
+                          s"Failed fulling image '${assignment.image}', reason: ${pullFailure.toString}"
+                        )
+                      )
+                    )),
+                  imageId =>
+                    runAssignment(runTestId, (config.dockerRunArgs.map(_.value) :+ imageId) ++ assignment.args)
+                      .catchAll(commandError =>
+                        ZIO.succeed(Source.single(
+                          TpWorkerReport(Instant.now, TpWorkerException(s"Run error: ${commandError.toString}"))
+                        ))
+                      )
+                )
+            } yield source
+          } {
+            createRetrySchedule(_, config.retry)
+          }
+      }
     } yield ()
   }
 

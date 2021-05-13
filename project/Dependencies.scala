@@ -1,7 +1,7 @@
 import sbt._
 
 object Dependencies {
-  val CHOPSTICKS_VERSION = "3.1.0-20210502053638-b0233c0"
+  val CHOPSTICKS_VERSION = "3.1.0-20210513051813-d2ff18a"
   val ZIO_VERSION = "1.0.7"
 
   lazy val akkaGrpcRuntimeDeps = Seq(
