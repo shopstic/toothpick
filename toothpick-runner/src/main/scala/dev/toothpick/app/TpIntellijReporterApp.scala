@@ -2,6 +2,7 @@ package dev.toothpick.app
 
 import dev.chopsticks.fp.config.{HoconConfig, TypedConfig}
 import dev.chopsticks.fp.iz_logging.IzLogging
+import dev.chopsticks.fp.util.ZTraceConcisePrinter
 import dev.chopsticks.fp.zio_ext.ZIOExtensions
 import dev.toothpick.proto.api.TpTestSuite
 import dev.toothpick.reporter.{TpIntellijReporter, TpReporterConfig}
@@ -14,7 +15,7 @@ import logstage.Log
 import pureconfig.ConfigReader
 import pureconfig.generic.ProductHint
 import zio.console.putStrLn
-import zio.{ExitCode, URIO}
+import zio.{ExitCode, UIO, URIO}
 
 import java.util.UUID
 
@@ -72,8 +73,16 @@ object TpIntellijReporterApp extends zio.App {
         IzLogging.live(),
         apiClientLayer
       )
-      .orDie
 
-    (before *> app *> after).as(ExitCode(0))
+    (before *> app *> after)
+      .as(ExitCode(0))
+      .catchAllTrace { case (e, maybeTrace) =>
+        UIO {
+          e.printStackTrace()
+          maybeTrace.foreach { t =>
+            System.err.println("\n" + ZTraceConcisePrinter.prettyPrint(t))
+          }
+        }.as(ExitCode(1))
+      }
   }
 }
