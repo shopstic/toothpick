@@ -4,6 +4,7 @@ import akka.stream.scaladsl.Sink
 import com.apple.foundationdb.tuple.Versionstamp
 import dev.chopsticks.fp.akka_env.AkkaEnv
 import dev.chopsticks.fp.iz_logging.IzLogging
+import dev.chopsticks.fp.zio_ext.MeasuredLogging
 import dev.chopsticks.kvdb.util.KvdbException.ConditionalTransactionFailedException
 import dev.toothpick.proto.api.ZioApi.RTpApi
 import dev.toothpick.proto.api._
@@ -15,8 +16,8 @@ import zio.{Task, UIO, ZIO}
 
 import java.util.UUID
 
-final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with IzLogging] {
-  override def run(request: TpRunRequest): ZIO[TpState with IzLogging, Status, TpRunResponse] = {
+final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with MeasuredLogging] {
+  override def run(request: TpRunRequest): ZIO[TpState with MeasuredLogging, Status, TpRunResponse] = {
     val task = for {
       state <- TpState.get
       runId <- UIO(UUID.randomUUID())
@@ -59,7 +60,8 @@ final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with IzLogging] 
       .mapError(Status.INTERNAL.withCause)
   }
 
-  override def abort(request: TpAbortRequest): ZIO[TpState with AkkaEnv with IzLogging, Status, TpAbortResponse] = {
+  override def abort(request: TpAbortRequest)
+    : ZIO[TpState with AkkaEnv with MeasuredLogging, Status, TpAbortResponse] = {
     val task = for {
       state <- TpState.get
       api = state.api

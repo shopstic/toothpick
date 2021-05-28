@@ -1,11 +1,11 @@
 import sbt._
 
 object Dependencies {
-  val CHOPSTICKS_VERSION = "3.2.0-20210517014425-3ea8b4c"
-  val ZIO_VERSION = "1.0.7"
+  val CHOPSTICKS_VERSION = "3.2.0-20210528133431-b7643e8"
+  val ZIO_VERSION = "1.0.8"
 
   lazy val akkaGrpcRuntimeDeps = Seq(
-    "com.lightbend.akka.grpc" %% "akka-grpc-runtime" % "1.1.1"
+    "com.lightbend.akka.grpc" %% "akka-grpc-runtime" % "2.0.0"
   )
 
   lazy val betterFilesDeps = Seq(
@@ -41,7 +41,7 @@ object Dependencies {
   )
 
   lazy val grpcNettyDeps = Seq(
-    "io.grpc" % "grpc-netty" % "1.36.0"
+    "io.grpc" % "grpc-netty" % "1.38.0"
   )
 
   lazy val jibDeps = Seq(
@@ -49,8 +49,8 @@ object Dependencies {
   )
 
   lazy val jsoniterDeps = Seq(
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.7.3",
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.7.3" % "provided"
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.8.2",
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.8.2" % "provided"
   )
 
   lazy val pureconfigEnumeratumDeps = Seq(
@@ -58,7 +58,7 @@ object Dependencies {
   )
 
   lazy val quicklensDeps = Seq(
-    "com.softwaremill.quicklens" %% "quicklens" % "1.7.1"
+    "com.softwaremill.quicklens" %% "quicklens" % "1.7.3"
   )
 
   lazy val overrideDeps = Seq(
@@ -66,7 +66,7 @@ object Dependencies {
   )
 
   lazy val pprintDeps = Seq(
-    "com.lihaoyi" %% "pprint" % "0.6.5"
+    "com.lihaoyi" %% "pprint" % "0.6.6"
   )
 
   lazy val scalaXmlDeps = Seq(
@@ -83,15 +83,15 @@ object Dependencies {
   )
 
   lazy val zioProcessDeps = Seq(
-    "dev.zio" %% "zio-process" % "0.3.0"
+    "dev.zio" %% "zio-process" % "0.4.0"
   )
 
   lazy val zioInteropReactivestreamsDeps = Seq(
-    "dev.zio" %% "zio-interop-reactivestreams" % "1.3.4"
+    "dev.zio" %% "zio-interop-reactivestreams" % "1.3.5"
   )
 
   lazy val zioDeps = Seq(
-    "io.github.kitlangton" %% "zio-magic" % "0.2.6",
+    "io.github.kitlangton" %% "zio-magic" % "0.3.2",
     "dev.zio" %% "zio" % ZIO_VERSION,
     "dev.zio" %% "zio-test" % ZIO_VERSION % "test",
     "dev.zio" %% "zio-test-sbt" % ZIO_VERSION % "test"

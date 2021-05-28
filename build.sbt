@@ -4,7 +4,7 @@ ThisBuild / githubOwner := "shopstic"
 ThisBuild / githubRepository := "toothpick"
 ThisBuild / organization := "dev.toothpick"
 
-ThisBuild / scalaVersion := "2.13.5"
+ThisBuild / scalaVersion := "2.13.6"
 
 ThisBuild / resolvers ++= Seq(
   Resolver.githubPackages("shopstic", "chopsticks"),

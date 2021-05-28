@@ -17,7 +17,7 @@ import dev.toothpick.proto.server.{TpRunAbortRequestStatus, TpTestStatus}
 import dev.toothpick.state.TpState
 import dev.toothpick.state.TpStateDef.RunEventKey
 import eu.timepit.refined.auto._
-import zio.{Task, URIO, URLayer, ZIO, ZManaged}
+import zio.{Schedule, Task, URIO, URLayer, ZIO, ZManaged}
 
 import java.time.Instant
 
@@ -96,6 +96,8 @@ object TpDistributionPipeline {
             }
 
         } { (ctx, task) =>
+          import zio.duration._
+
           val runTestId = TpRunTestId(ctx.distribution.runId, ctx.distribution.testId)
 
           for {
@@ -103,13 +105,11 @@ object TpDistributionPipeline {
             state <- TpState.get
 
             abortWatchTask = state.api.columnFamily(state.keyspaces.abort)
-              .watchKeySource(ctx.distribution.runId)
-              .takeWhile {
+              .getValueTask(_ is ctx.distribution.runId)
+              .repeat(Schedule.fixed(1.second).whileInput {
                 case Some(TpRunAbortRequestStatus(true)) => false
                 case _ => true
-              }
-              .toZAkkaSource
-              .interruptibleRunIgnore()
+              })
               .zipLeft(zlogger.info(s"Got request to abort run ${ctx.distribution.runId}"))
               .as(TpWorkerDistributionResult(
                 runTestId = runTestId,

@@ -22,7 +22,7 @@ object TpIntellijRunnerAppConfigSpec extends DefaultRunnableSpec {
       } yield assert(config.apiClient.serverHost.value)(equalTo("localhost"))
     }
   )
-    .injectSomeShared[Environment](
+    .injectShared(
       IzLoggingRouter.live,
       IzLogging.live().orFail,
       HoconConfig.live(Some(TpIntellijRunnerApp.getClass)).orFail,

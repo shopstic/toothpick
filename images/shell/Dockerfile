@@ -3,7 +3,7 @@ FROM shopstic/bin-helm:3.5.3 as bin-helm
 FROM shopstic/bin-yq:4.6.3 as bin-yq
 FROM shopstic/curl-tar-unzip:1.0.1 as sbt
 
-ENV SBT_VERSION "1.5.1"
+ENV SBT_VERSION "1.5.2"
 
 RUN \
   mkdir /sbt && \

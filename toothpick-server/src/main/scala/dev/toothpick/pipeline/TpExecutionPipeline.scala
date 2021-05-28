@@ -19,7 +19,7 @@ import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.process.{Command, CommandError}
 import zio.stm.{STM, TMap, TPromise, TQueue}
-import zio.{ExitCode, Schedule, Task, URIO, URLayer, ZIO}
+import zio.{ExitCode, RIO, Schedule, Task, URIO, URLayer, ZIO}
 
 import java.time.{Instant, OffsetDateTime}
 import scala.concurrent.duration._
@@ -148,7 +148,7 @@ object TpExecutionPipeline {
         .fork
       nodeName = sys.env.get("NODE_NAME").orElse(sys.env.get("HOSTNAME")).getOrElse("unknown")
       _ <- {
-        def pullAssignmentImage(image: String, onStarted: Task[Unit]) = {
+        def pullAssignmentImage[R](image: String, onStarted: RIO[R, Unit]) = {
           for {
             pullState <- STM.atomically {
               for {
