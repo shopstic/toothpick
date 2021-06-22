@@ -62,7 +62,7 @@ object Dependencies {
   )
 
   lazy val overrideDeps = Seq(
-    "com.typesafe.akka" %% "akka-discovery" % "2.6.14+34-2dde4b6b"
+    "com.typesafe.akka" %% "akka-discovery" % "2.6.15"
   )
 
   lazy val pprintDeps = Seq(

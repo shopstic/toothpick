@@ -7,8 +7,7 @@ ThisBuild / organization := "dev.toothpick"
 ThisBuild / scalaVersion := "2.13.6"
 
 ThisBuild / resolvers ++= Seq(
-  Resolver.githubPackages("shopstic", "chopsticks"),
-  "Akka Snapshots" at "https://repo.akka.io/snapshots/"
+  Resolver.githubPackages("shopstic", "chopsticks")
 )
 
 ThisBuild / javacOptions := Seq("-encoding", "UTF-8")
