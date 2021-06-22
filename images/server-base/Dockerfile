@@ -5,6 +5,7 @@ RUN \
   sed -i 's/networkaddress.cache.negative.ttl=10/networkaddress.cache.negative.ttl=1/g' /opt/java/openjdk/conf/security/java.security
 
 COPY --from=shopstic/bin-dumb-init:1.2.2 / /
+COPY --from=shopstic/bin-docker:20.10.6 / /
 COPY --from=foundationdb/foundationdb:6.3.15 /usr/lib/libfdb_c.so /usr/lib/libfdb_c.so
 COPY --from=foundationdb/foundationdb:6.3.15 /usr/lib/fdb/multiversion/libfdb_c_6.2.25.so /usr/lib/fdb/multiversion/libfdb_c_6.2.25.so
 
