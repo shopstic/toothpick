@@ -1,27 +1,11 @@
-FROM shopstic/bin-docker:20.10.6 as bin-docker
-FROM shopstic/bin-dumb-init:1.2.2 as bin-dumb-init
-
-FROM shopstic/curl-tar-unzip:1.0.1 as fdb-clients
-
-ENV FDB_VERSION "6.2.30"
+FROM adoptopenjdk:11.0.11_9-jdk-hotspot-focal@sha256:2b8296b8341cf0c6f2aa259afbea0bca0dfd8b5b34b2f7c965c2d8eb87a78257
 
 RUN \
-  curl -Lko /tmp/fdb-clients.deb https://www.foundationdb.org/downloads/${FDB_VERSION}/ubuntu/installers/foundationdb-clients_${FDB_VERSION}-1_amd64.deb
+  sed -i 's/#networkaddress.cache.ttl=-1/networkaddress.cache.ttl=5/g' /opt/java/openjdk/conf/security/java.security && \
+  sed -i 's/networkaddress.cache.negative.ttl=10/networkaddress.cache.negative.ttl=1/g' /opt/java/openjdk/conf/security/java.security
 
-FROM openjdk:11.0.11-jre-slim-buster
-
-SHELL ["/bin/bash", "-c"]
-
-COPY --from=bin-dumb-init / /
-COPY --from=bin-docker / /
-COPY --from=fdb-clients /tmp/fdb-clients.deb /tmp/fdb-clients.deb
-
-RUN \
-  apt-get install /tmp/fdb-clients.deb && \
-  rm -f /tmp/fdb-clients.deb
-
-RUN \
-  sed -i 's/#networkaddress.cache.ttl=-1/networkaddress.cache.ttl=5/g' /usr/local/openjdk-11/conf/security/java.security && \
-  sed -i 's/networkaddress.cache.negative.ttl=10/networkaddress.cache.negative.ttl=1/g' /usr/local/openjdk-11/conf/security/java.security
+COPY --from=shopstic/bin-dumb-init:1.2.2 / /
+COPY --from=foundationdb/foundationdb:6.3.15 /usr/lib/libfdb_c.so /usr/lib/libfdb_c.so
+COPY --from=foundationdb/foundationdb:6.3.15 /usr/lib/fdb/multiversion/libfdb_c_6.2.25.so /usr/lib/fdb/multiversion/libfdb_c_6.2.25.so
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]

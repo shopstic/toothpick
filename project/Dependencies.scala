@@ -1,8 +1,8 @@
 import sbt._
 
 object Dependencies {
-  val CHOPSTICKS_VERSION = "3.2.0-20210528133431-b7643e8"
-  val ZIO_VERSION = "1.0.8"
+  val CHOPSTICKS_VERSION = "3.3.0-20210619071451-790581e"
+  val ZIO_VERSION = "1.0.9"
 
   lazy val akkaGrpcRuntimeDeps = Seq(
     "com.lightbend.akka.grpc" %% "akka-grpc-runtime" % "2.0.0"
@@ -45,7 +45,7 @@ object Dependencies {
   )
 
   lazy val jibDeps = Seq(
-    "com.google.cloud.tools" % "jib-core" % "0.18.0"
+    "com.google.cloud.tools" % "jib-core" % "0.19.0"
   )
 
   lazy val jsoniterDeps = Seq(
@@ -54,11 +54,11 @@ object Dependencies {
   )
 
   lazy val pureconfigEnumeratumDeps = Seq(
-    "com.github.pureconfig" %% "pureconfig-enumeratum" % "0.15.0"
+    "com.github.pureconfig" %% "pureconfig-enumeratum" % "0.16.0"
   )
 
   lazy val quicklensDeps = Seq(
-    "com.softwaremill.quicklens" %% "quicklens" % "1.7.3"
+    "com.softwaremill.quicklens" %% "quicklens" % "1.7.4"
   )
 
   lazy val overrideDeps = Seq(
@@ -79,11 +79,11 @@ object Dependencies {
   )
 
   lazy val scalapbJson4sDeps = Seq(
-    "com.thesamet.scalapb" %% "scalapb-json4s" % "0.11.0"
+    "com.thesamet.scalapb" %% "scalapb-json4s" % "0.11.1"
   )
 
   lazy val zioProcessDeps = Seq(
-    "dev.zio" %% "zio-process" % "0.4.0"
+    "dev.zio" %% "zio-process" % "0.5.0"
   )
 
   lazy val zioInteropReactivestreamsDeps = Seq(
@@ -91,7 +91,7 @@ object Dependencies {
   )
 
   lazy val zioDeps = Seq(
-    "io.github.kitlangton" %% "zio-magic" % "0.3.2",
+    "io.github.kitlangton" %% "zio-magic" % "0.3.3",
     "dev.zio" %% "zio" % ZIO_VERSION,
     "dev.zio" %% "zio-test" % ZIO_VERSION % "test",
     "dev.zio" %% "zio-test-sbt" % ZIO_VERSION % "test"

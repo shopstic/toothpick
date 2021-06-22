@@ -3,7 +3,7 @@ FROM shopstic/bin-helm:3.5.3 as bin-helm
 FROM shopstic/bin-yq:4.6.3 as bin-yq
 FROM shopstic/curl-tar-unzip:1.0.1 as sbt
 
-ENV SBT_VERSION "1.5.2"
+ENV SBT_VERSION "1.5.4"
 
 RUN \
   mkdir /sbt && \
@@ -14,7 +14,7 @@ RUN \
 
 FROM shopstic/curl-tar-unzip:1.0.1 as fdb
 
-ENV FDB_VERSION "6.2.30"
+ENV FDB_VERSION "6.3.15"
 
 RUN \
   curl -Lko /usr/bin/fdb-clients.deb https://www.foundationdb.org/downloads/${FDB_VERSION}/ubuntu/installers/foundationdb-clients_${FDB_VERSION}-1_amd64.deb && \
