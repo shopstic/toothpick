@@ -103,9 +103,10 @@ object TpExecutionPipeline {
       .unit
   }
 
-  sealed trait ImagePullFailure extends RuntimeException with NoStackTrace
-  final case class ImagePullCommandError(error: CommandError) extends ImagePullFailure
-  final case class ImagePullFailureWithExitCode(exitCode: Int, stderr: String) extends ImagePullFailure
+  sealed abstract class ImagePullFailure(msg: String) extends RuntimeException(msg) with NoStackTrace
+  final case class ImagePullCommandError(error: CommandError) extends ImagePullFailure(msg = error.toString)
+  final case class ImagePullFailureWithExitCode(exitCode: Int, stderr: String)
+      extends ImagePullFailure(s"exitCode=$exitCode stderr=$stderr")
 
   private def pullImage(dockerPath: NonEmptyString, image: String): ZIO[Blocking, ImagePullFailure, String] = {
     val task = for {
