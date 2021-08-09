@@ -161,7 +161,7 @@ object TpDistributionPipeline {
           .tailSource
           .via {
             import dev.chopsticks.kvdb.codec.KeyTransformer.identityTransformer
-            state.api.columnFamily(state.keyspaces.distribution).batchGetByKeysFlow(_._2)
+            state.api.columnFamily(state.keyspaces.distribution).getByKeysFlow(_._2)
           }
           .collect { case ((versionstamp, _), Some(distribution)) =>
             import io.scalaland.chimney.dsl._

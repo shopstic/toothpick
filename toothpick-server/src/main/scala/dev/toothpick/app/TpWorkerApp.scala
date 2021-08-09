@@ -55,6 +55,7 @@ object TpWorkerApp extends ZAkkaApp {
         tpState,
         dstreamWorker,
         kvdbIoThreadPool,
+        kvdbSerdesThreadPool,
         dstreamClient,
         metricLogger
       )

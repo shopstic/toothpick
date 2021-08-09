@@ -297,11 +297,11 @@ object TpExecutionPipeline {
                     )),
                   imageId =>
                     runAssignment(runTestId, (config.dockerRunArgs.map(_.value) :+ imageId) ++ assignment.args)
-                      .catchAll(commandError =>
+                      .catchAll { commandError =>
                         ZIO.succeed(Source.single(
                           TpWorkerReport(Instant.now, TpWorkerException(s"Run error: ${commandError.toString}"))
                         ))
-                      )
+                      }
                 )
             } yield source
           } {

@@ -1,8 +1,8 @@
 import sbt._
 
 object Dependencies {
-  val CHOPSTICKS_VERSION = "3.3.0-20210619071451-790581e"
-  val ZIO_VERSION = "1.0.9"
+  val CHOPSTICKS_VERSION = "3.4.0-20210809213035-d8c7750"
+  val ZIO_VERSION = "1.0.10"
 
   lazy val akkaGrpcRuntimeDeps = Seq(
     "com.lightbend.akka.grpc" %% "akka-grpc-runtime" % "2.0.0"
@@ -49,8 +49,8 @@ object Dependencies {
   )
 
   lazy val jsoniterDeps = Seq(
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.8.2",
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.8.2" % "provided"
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.9.1",
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.9.1" % "provided"
   )
 
   lazy val pureconfigEnumeratumDeps = Seq(
@@ -91,7 +91,7 @@ object Dependencies {
   )
 
   lazy val zioDeps = Seq(
-    "io.github.kitlangton" %% "zio-magic" % "0.3.3",
+    "io.github.kitlangton" %% "zio-magic" % "0.3.6",
     "dev.zio" %% "zio" % ZIO_VERSION,
     "dev.zio" %% "zio-test" % ZIO_VERSION % "test",
     "dev.zio" %% "zio-test-sbt" % ZIO_VERSION % "test"

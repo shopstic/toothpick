@@ -5,7 +5,7 @@ import dev.chopsticks.fp.zio_ext.MeasuredLogging
 import dev.chopsticks.kvdb.KvdbDatabase
 import dev.chopsticks.kvdb.api.KvdbDatabaseApi
 import dev.chopsticks.kvdb.fdb.FdbDatabase
-import dev.chopsticks.kvdb.util.KvdbIoThreadPool
+import dev.chopsticks.kvdb.util.{KvdbIoThreadPool, KvdbSerdesThreadPool}
 import zio.{Has, RLayer, URIO, ZIO, ZManaged}
 import zio.blocking.Blocking
 
@@ -26,7 +26,10 @@ object TpState {
 
   def get: URIO[TpState, Service] = ZIO.access[TpState](_.get)
 
-  def live: RLayer[AkkaEnv with Blocking with MeasuredLogging with KvdbIoThreadPool with Has[TpDbConfig], TpState] = {
+  def live: RLayer[
+    AkkaEnv with Blocking with MeasuredLogging with KvdbIoThreadPool with KvdbSerdesThreadPool with Has[TpDbConfig],
+    TpState
+  ] = {
     val managed = for {
       config <- ZManaged.service[TpDbConfig]
       backend <- FdbDatabase.manage(TpStateMaterialization, config.backend)

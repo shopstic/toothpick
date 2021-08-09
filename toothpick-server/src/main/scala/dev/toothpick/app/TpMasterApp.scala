@@ -64,6 +64,7 @@ object TpMasterApp extends ZAkkaApp {
         tpDbConfig,
         tpState,
         kvdbIoThreadPool,
+        kvdbSerdesThreadPool,
         tpApiServer,
         metricLogger
       )

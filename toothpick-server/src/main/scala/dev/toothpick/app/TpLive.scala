@@ -11,7 +11,7 @@ import dev.chopsticks.dstream.metric.{
   DstreamStateMetricsManager
 }
 import dev.chopsticks.fp.akka_env.AkkaEnv
-import dev.chopsticks.kvdb.util.KvdbIoThreadPool
+import dev.chopsticks.kvdb.util.{KvdbIoThreadPool, KvdbSerdesThreadPool}
 import dev.chopsticks.metric.log.MetricLogger
 import dev.chopsticks.metric.prom.PromMetricRegistryFactory
 import dev.toothpick.metric.PrometheusMetricServer
@@ -67,7 +67,8 @@ object TpLive {
     DstreamMaster.live[TpWorkerDistributionContext, TpWorkerDistribution, TpWorkerReport, TpWorkerDistributionResult]
   lazy val dstreamWorker = DstreamWorker.live[TpWorkerDistribution, TpWorkerReport]
 
-  lazy val kvdbIoThreadPool = KvdbIoThreadPool.live()
+  lazy val kvdbIoThreadPool = KvdbIoThreadPool.live
+  lazy val kvdbSerdesThreadPool = KvdbSerdesThreadPool.fromDefaultAkkaDispatcher()
   lazy val tpTestDistributionPipeline = TpDistributionPipeline.live
   lazy val tpTestExecutionPipeline = TpExecutionPipeline.live
   lazy val tpApiServer = TpApiServer.live
