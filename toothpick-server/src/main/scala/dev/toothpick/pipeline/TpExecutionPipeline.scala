@@ -8,6 +8,7 @@ import dev.chopsticks.fp.ZRunnable
 import dev.chopsticks.fp.akka_env.AkkaEnv
 import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.fp.zio_ext.ZIOExtensions
+import dev.chopsticks.stream.ZAkkaScope
 import dev.toothpick.proto.api._
 import dev.toothpick.proto.dstream._
 import dev.toothpick.state.TpState
@@ -184,14 +185,8 @@ object TpExecutionPipeline {
             dispatcher <- AkkaEnv.dispatcher
             logger <- IzLogging.logger
             process <- Command(config.dockerPath, args: _*).run
-          } yield {
-            import zio.interop.reactivestreams._
-
-            val exitCodeFuture = runtime.unsafeRunToFuture(process.exitCode)
-            val exitCodeSource = Source.future(exitCodeFuture)
-              .map(c => TpWorkerResult(c.code))
-
-            val logPersistenceFlow = state.api.batchTransact { batch: Vector[TpTestOutputLine] =>
+            scope <- ZAkkaScope.make
+            logPersistenceFlow <- state.api.batchTransact { batch: Vector[TpTestOutputLine] =>
               batch
                 .foldLeft(state.api.transactionBuilder) { (tx, outputLine) =>
                   val lineLength = outputLine.content.length
@@ -227,6 +222,13 @@ object TpExecutionPipeline {
                 }
                 .result -> TpWorkerProgress(logLineCount = batch.size)
             }
+              .make(scope)
+          } yield {
+            import zio.interop.reactivestreams._
+
+            val exitCodeFuture = runtime.unsafeRunToFuture(process.exitCode)
+            val exitCodeSource = Source.future(exitCodeFuture)
+              .map(c => TpWorkerResult(c.code))
 
             val stdoutSource = Source.fromPublisher(runtime.unsafeRun(process.stdout.linesStream.toPublisher))
               .map(TpTestOutputLine(_, TpTestOutputLine.Pipe.STDOUT))
@@ -249,15 +251,20 @@ object TpExecutionPipeline {
               .watchTermination() { (notUsed, f) =>
                 implicit val ec: ExecutionContextExecutor = dispatcher
 
-                val _ = f.transformWith { _ =>
-                  if (!exitCodeFuture.isCompleted) {
-                    logger.warn(s"Aborting $runTestId")
-                    exitCodeFuture.cancel().map(_ => ())
+                val _ = f
+                  .transformWith { _ =>
+                    runtime
+                      .unsafeRunToFuture(scope.close())
+                      .transformWith { _ =>
+                        if (!exitCodeFuture.isCompleted) {
+                          logger.warn(s"Aborting $runTestId")
+                          exitCodeFuture.cancel().map(_ => ())
+                        }
+                        else {
+                          Future.successful(())
+                        }
+                      }
                   }
-                  else {
-                    Future.successful(())
-                  }
-                }
                 notUsed
               }
           }

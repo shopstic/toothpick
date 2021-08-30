@@ -70,6 +70,7 @@ object TpDistributionPipeline {
               workerReport <- report
                 .source
                 .toZAkkaSource
+                .killSwitch
                 .interruptibleRunWith(Sink.last)
             } yield {
               val runEvent = workerReport.event match {
@@ -171,9 +172,10 @@ object TpDistributionPipeline {
               distribution.into[TpWorkerDistribution].transform
             )
           }
-          .via(distributionFlow)
           .toZAkkaSource
-          .interruptibleMapAsyncUnordered(config.master.parallelism) { result =>
+          .viaZAkkaFlow(distributionFlow)
+          .killSwitch
+          .mapAsyncUnordered(config.master.parallelism) { result =>
             state
               .api
               .transact(
