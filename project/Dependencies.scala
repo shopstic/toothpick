@@ -1,7 +1,7 @@
 import sbt._
 
 object Dependencies {
-  val CHOPSTICKS_VERSION = "3.5.0-20210830085017-aa7efee"
+  val CHOPSTICKS_VERSION = "3.5.0-20210830104611-b0e26b0"
   val ZIO_VERSION = "1.0.11"
 
   lazy val akkaGrpcRuntimeDeps = Seq(
@@ -62,7 +62,7 @@ object Dependencies {
   )
 
   lazy val overrideDeps = Seq(
-    "com.typesafe.akka" %% "akka-discovery" % "2.6.15"
+    "com.typesafe.akka" %% "akka-discovery" % "2.6.16"
   )
 
   lazy val pprintDeps = Seq(
