@@ -124,7 +124,7 @@ object TpDistributionPipeline {
             out <- task
               .retryWhileM {
                 // CANCEL
-                case e: PeerClosedStreamException if e.numericErrorCode == 0x8 =>
+                case e: PeerClosedStreamException if e.errorCode == "CANCEL" =>
                   state
                     .api
                     .columnFamily(state.keyspaces.reports)
@@ -145,7 +145,9 @@ object TpDistributionPipeline {
                     versionstamp = ctx.versionstamp,
                     event = TpTestReport(
                       time = Instant.now,
-                      event = TpTestException(s"Worker failed with exception: ${exception.getMessage}")
+                      event = TpTestException(
+                        s"Worker failed with exception: ${exception.getClass.getName} ${exception.getMessage}"
+                      )
                     )
                   ))
               }
