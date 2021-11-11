@@ -1,19 +1,20 @@
 import Dependencies._
 
-ThisBuild / githubOwner := "shopstic"
-ThisBuild / githubRepository := "toothpick"
+//ThisBuild / githubOwner := "shopstic"
+//ThisBuild / githubRepository := "toothpick"
 ThisBuild / organization := "dev.toothpick"
 
 ThisBuild / scalaVersion := "2.13.6"
 
-ThisBuild / resolvers ++= Seq(
-  Resolver.githubPackages("shopstic", "chopsticks")
-)
+//ThisBuild / resolvers ++= Seq(
+//  Resolver.githubPackages("shopstic", "chopsticks")
+//)
 
 ThisBuild / javacOptions := Seq("-encoding", "UTF-8")
 ThisBuild / scalacOptions := Build.scalacOptions
 
 ThisBuild / dependencyOverrides := Dependencies.overrideDeps
+ThisBuild / PB.protocVersion := "3.17.3"
 
 lazy val api = Build
   .defineProject("api")
@@ -43,6 +44,8 @@ lazy val server = Build
   .settings(Build.createScalapbSettings(withGrpc = false))
   .settings(
     publish / skip := true,
+    Compile / discoveredMainClasses := Seq.empty,
+    Compile / mainClass := Some("dev.toothpick.app.TpMasterApp"),
     dockerExposedPorts := Seq(8080, 8081),
     dockerEntrypoint := Seq("/usr/bin/dumb-init", "--"),
     Docker / daemonUserUid := Some("1001"),

@@ -21,3 +21,4 @@ docker run \
   -w "${PWD}" \
   "${IMAGE_ID}" \
   bash -l
+

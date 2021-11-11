@@ -1,4 +1,8 @@
 /.bsp
 /.idea
 target
-/.shell-history
+/.zsh_history
+/.direnv
+/.idea
+/.vscode
+/test-console.sh
