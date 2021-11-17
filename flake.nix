@@ -46,12 +46,7 @@
         in
         rec {
           devShell = pkgs.mkShellNoCC {
-            buildInputs = toothpick.buildInputs ++ builtins.attrValues {
-              inherit (pkgs)
-                git-crypt
-                gnupg
-                ;
-            };
+            buildInputs = toothpick.buildInputs;
           };
           defaultPackage = toothpick;
           packages = {
@@ -60,6 +55,14 @@
                 inherit (pkgs)
                   kubernetes-helm
                   yq-go
+                  ;
+              };
+            };
+            gitCryptShell = pkgs.mkShellNoCC {
+              buildInputs = builtins.attrValues {
+                inherit (pkgs)
+                  git-crypt
+                  gnupg
                   ;
               };
             };
