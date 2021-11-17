@@ -50,6 +50,7 @@
           };
           defaultPackage = toothpick;
           packages = {
+            devEnv = devShell.inputDerivation;
             helmShell = pkgs.mkShellNoCC {
               buildInputs = builtins.attrValues {
                 inherit (pkgs)

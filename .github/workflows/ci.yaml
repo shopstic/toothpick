@@ -38,8 +38,14 @@ jobs:
           nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
           nixCacheS3SecretAccessKey: ${{ secrets.NIX_CACHE_S3_SECRET_ACCESS_KEY }}
 
+      - name: Build dev env
+        run: nix build -L -v --no-link '.#packages.${{ matrix.arch }}.devEnv'
+
       - name: Build apps
         run: nix build -L -v --no-link '.#defaultPackage.${{ matrix.arch }}'
+
+      - name: Logout
+        run: sudo tailscale logout
 
       - name: Cache apps
         uses: shopstic/tailscale-nix-builder/cache@5d038bf4bfb3dea2f3b588efe6388796e263c6d4
@@ -47,9 +53,12 @@ jobs:
           nixOutput: .#defaultPackage.${{ matrix.arch }}
           nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
 
-      - name: Logout
-        run: sudo tailscale logout
-
+      - name: Cache dev env
+        uses: shopstic/tailscale-nix-builder/cache@5d038bf4bfb3dea2f3b588efe6388796e263c6d4
+        with:
+          nixOutput: .#packages.${{ matrix.arch }}.devEnv
+          nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
+          
   build-images:
     name: Build images
     runs-on: ubuntu-20.04
@@ -138,6 +147,3 @@ jobs:
           APP_VERSION=${GITHUB_TAG:-"${GITHUB_SHA}"}
 
           nix develop '.#helmShell' -v -c ./cli.sh push_helm_chart "${CHART_VERSION}" "${APP_VERSION}" "oci://ghcr.io/shopstic/toothpick/chart"
-
-      - name: Logout
-        run: sudo tailscale logout
