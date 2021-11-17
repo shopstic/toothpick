@@ -58,14 +58,6 @@
                   ;
               };
             };
-            gitCryptShell = pkgs.mkShellNoCC {
-              buildInputs = builtins.attrValues {
-                inherit (pkgs)
-                  git-crypt
-                  gnupg
-                  ;
-              };
-            };
             server = toothpick.server;
             dockerServer = toothpick.dockerServer;
             runnerJre = toothpickRunnerJre;
