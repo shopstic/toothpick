@@ -116,4 +116,4 @@ jobs:
           # GITHUB_TAG: ${{ steps.ref_name.outputs.tag }}
           GITHUB_TAG: ${{ github.sha }}
         run: |-
-          nix develop -c ./cli.sh push_helm_chart "${GITHUB_TAG}" "oci://ghcr.io/shopstic/chart-toothpick:${GITHUB_TAG}"
+          nix develop -v -c ./cli.sh push_helm_chart "${GITHUB_TAG}" "oci://ghcr.io/shopstic/charts"
