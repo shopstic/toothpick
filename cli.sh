@@ -9,7 +9,7 @@ push_helm_chart() {
 
   local OUT
   OUT=$(mktemp -d)
-  trap "rm -Rf ${OUT}" EXIT
+  # trap "rm -Rf $cd {OUT}" EXIT
 
   cp -R ./charts/toothpick "${OUT}/"
 
