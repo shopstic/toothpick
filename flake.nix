@@ -43,23 +43,35 @@
             toothpickRunner = toothpick;
             jre = pkgs.jre_minimal.override { jdk = pkgs.jdk11_headless; };
           };
-        in
-        rec {
-          devShell = pkgs.mkShellNoCC {
-            buildInputs = toothpick.buildInputs;
+
+          skopeoShell = pkgs.mkShellNoCC {
+            buildInputs = builtins.attrValues {
+              inherit (pkgs)
+                skopeo
+                ;
+            };
           };
+
+          helmShell = pkgs.mkShellNoCC {
+            buildInputs = builtins.attrValues {
+              inherit (pkgs)
+                kubernetes-helm
+                yq-go
+                ;
+            };
+          };
+
+          devShell = pkgs.mkShellNoCC {
+            buildInputs = toothpick.buildInputs ++ skopeoShell.buildInputs ++ helmShell.buildInputs;
+          };
+        in
+        {
+          inherit devShell;
           defaultPackage = toothpick;
           packages = {
             hello = pkgs.hello;
             devEnv = devShell.inputDerivation;
-            helmShell = pkgs.mkShellNoCC {
-              buildInputs = builtins.attrValues {
-                inherit (pkgs)
-                  kubernetes-helm
-                  yq-go
-                  ;
-              };
-            };
+            inherit helmShell skopeoShell;
             server = toothpick.server;
             dockerServer = toothpick.dockerServer;
             runnerJre = toothpickRunnerJre;
