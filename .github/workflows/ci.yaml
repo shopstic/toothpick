@@ -47,6 +47,9 @@ jobs:
           nixOutput: .#defaultPackage.${{ matrix.arch }}
           nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
 
+      - name: Logout
+        run: sudo tailscale logout
+
   build-images:
     name: Build images
     runs-on: ubuntu-20.04
@@ -79,6 +82,9 @@ jobs:
       - name: Build container images
         run: |-
           nix build -L -v --no-link '.#packages.${{ matrix.arch }}.serverImage' 
+
+      - name: Logout
+        run: sudo tailscale logout
 
   build-helm-chart:
     name: Build Helm chart
@@ -132,3 +138,6 @@ jobs:
           APP_VERSION=${GITHUB_TAG:-"${GITHUB_SHA}"}
 
           nix develop '.#helmShell' -v -c ./cli.sh push_helm_chart "${CHART_VERSION}" "${APP_VERSION}" "oci://ghcr.io/shopstic/toothpick/chart"
+
+      - name: Logout
+        run: sudo tailscale logout
