@@ -20,14 +20,10 @@ jobs:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
       - name: Decrypt
-        env:
-          GIT_CRYPT_GPG_KEY: ${{ secrets.GIT_CRYPT_GPG_KEY }}
+        uses: ./.github/actions/decrypt-git-crypt
+        with:
+          gitCryptGpgKey: ${{ secrets.GIT_CRYPT_GPG_KEY }}
         timeout-minutes: 2
-        run: |-
-          sudo apt-get update
-          sudo apt-get install -y git-crypt
-          printenv GIT_CRYPT_GPG_KEY | base64 -d | gpg --import
-          git-crypt unlock
 
       - name: Setup
         uses: shopstic/tailscale-nix-builder/setup@d9c5d745b8fad9cc12597a1b3410bb4d51292e90
@@ -62,6 +58,12 @@ jobs:
     steps:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
+      - name: Decrypt
+        uses: ./.github/actions/decrypt-git-crypt
+        with:
+          gitCryptGpgKey: ${{ secrets.GIT_CRYPT_GPG_KEY }}
+        timeout-minutes: 2
+        
       - name: Setup
         uses: shopstic/tailscale-nix-builder/setup@d9c5d745b8fad9cc12597a1b3410bb4d51292e90
         timeout-minutes: 1
