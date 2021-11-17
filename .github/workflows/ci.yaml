@@ -19,8 +19,14 @@ jobs:
     steps:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
+      - name: Decrypt
+        uses: ./.github/actions/decrypt-git-crypt
+        with:
+          gitCryptGpgKey: ${{ secrets.GIT_CRYPT_GPG_KEY }}
+        timeout-minutes: 2
+
       - name: Setup
-        uses: shopstic/tailscale-nix-builder/setup@d59671307e2d1555ecbb89d2d510a51ca0d5688d
+        uses: shopstic/tailscale-nix-builder/setup@6aac6bc8570b48c135cd78a30fb3f1bf5a4c7a31
         timeout-minutes: 1
         with:
           tailscaleAuthKey: ${{ secrets.TAILSCALE_AUTHKEY }}
@@ -31,8 +37,11 @@ jobs:
       - name: Build apps
         run: nix build -L -v --no-link '.#defaultPackage.${{ matrix.arch }}'
 
+      - name: Logout
+        run: sudo tailscale logout
+
       - name: Cache apps
-        uses: shopstic/tailscale-nix-builder/cache@5d038bf4bfb3dea2f3b588efe6388796e263c6d4
+        uses: shopstic/tailscale-nix-builder/cache@6aac6bc8570b48c135cd78a30fb3f1bf5a4c7a31
         with:
           nixOutput: .#defaultPackage.${{ matrix.arch }}
           nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
@@ -44,13 +53,19 @@ jobs:
     strategy:
       matrix:
         arch:
-          - x86_64-linux
-          - aarch64-linux
+          - x86_64
+          - aarch64
     steps:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
+      - name: Decrypt
+        uses: ./.github/actions/decrypt-git-crypt
+        with:
+          gitCryptGpgKey: ${{ secrets.GIT_CRYPT_GPG_KEY }}
+        timeout-minutes: 2
+
       - name: Setup
-        uses: shopstic/tailscale-nix-builder/setup@d59671307e2d1555ecbb89d2d510a51ca0d5688d
+        uses: shopstic/tailscale-nix-builder/setup@6aac6bc8570b48c135cd78a30fb3f1bf5a4c7a31
         timeout-minutes: 1
         with:
           tailscaleAuthKey: ${{ secrets.TAILSCALE_AUTHKEY }}
@@ -58,18 +73,66 @@ jobs:
           nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
           nixCacheS3SecretAccessKey: ${{ secrets.NIX_CACHE_S3_SECRET_ACCESS_KEY }}
 
-      # - name: Login to Docker Hub
-      #   uses: docker/login-action@v1
-      #   with:
-      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
-      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # - run: chmod +r ~/.docker/config.json
+      - run: chmod +r ~/.docker/config.json
+
+      - name: Derive branch and tag
+        id: meta
+        uses: ./.github/actions/derive-branch-tag
 
       - name: Build container images
         run: |-
-          nix build -L --no-link '.#packages.${{ matrix.arch }}.serverImage' 
+          nix build -L -v '.#packages.${{ matrix.arch }}-linux.serverImage' 
 
+      - name: Push
+        env:
+          GITHUB_TAG: ${{ steps.meta.outputs.tag }}
+          GITHUB_SHA: ${{ github.sha }}  
+        run: |-
+          TAG=${GITHUB_TAG:-"${GITHUB_SHA}"}
+          nix develop '.#skopeoShell' -v -c \
+            skopeo --insecure-policy copy docker-archive:./result docker://docker.io/shopstic/toothpick-server:${{ matrix.arch }}-"${TAG}"
+
+      - name: Logout
+        run: sudo tailscale logout
+
+  push-manifest:
+    name: Push multi-arch manifest
+    runs-on: ubuntu-20.04
+    needs: build-images
+    steps:
+      - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
+      
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - run: chmod +r ~/.docker/config.json
+
+      - name: Derive branch and tag
+        id: meta
+        uses: ./.github/actions/derive-branch-tag
+
+      - name: Push
+        env:
+          GITHUB_TAG: ${{ steps.meta.outputs.tag }}
+          GITHUB_SHA: ${{ github.sha }}  
+        run: |-
+          TAG=${GITHUB_TAG:-"${GITHUB_SHA}"}
+          docker manifest create \
+            shopstic/toothpick-server:"${TAG}" \
+            --amend shopstic/toothpick-server:x86_64-"${TAG}" \
+            --amend shopstic/toothpick-server:aarch64-"${TAG}"
+
+          docker manifest push shopstic/toothpick-server:"${TAG}"
+  
   build-helm-chart:
     name: Build Helm chart
     runs-on: ubuntu-20.04
@@ -77,7 +140,7 @@ jobs:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
       - name: Setup
-        uses: shopstic/tailscale-nix-builder/setup@d59671307e2d1555ecbb89d2d510a51ca0d5688d
+        uses: shopstic/tailscale-nix-builder/setup@6aac6bc8570b48c135cd78a30fb3f1bf5a4c7a31
         timeout-minutes: 1
         with:
           nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
@@ -92,27 +155,19 @@ jobs:
 
       - run: chmod +r ~/.docker/config.json
 
-      - name: Github ref name
-        id: ref_name
-        run: |
-          BRANCH=""
-          TAG=""
-          if [[ "${GITHUB_REF}" =~ ^refs/heads/.* ]]; then
-            BRANCH=${GITHUB_REF#refs/heads/}
-          fi
-
-          if [[ "${GITHUB_REF}" =~ ^refs/tags/.* ]]; then
-            TAG=${GITHUB_REF#refs/tags/}
-          elif [[ "${BRANCH}" == "main" ]]; then
-            TAG=${GITHUB_SHA}
-          fi
-
-          echo "::set-output name=branch::${BRANCH}"
-          echo "::set-output name=tag::${TAG}"
+      - name: Derive branch and tag
+        id: meta
+        uses: ./.github/actions/derive-branch-tag
 
       - name: Build and push Helm Chart
-        if: steps.ref_name.outputs.tag != ''
+        # if: steps.ref_name.outputs.tag != ''
         env:
-          GITHUB_TAG: ${{ steps.ref_name.outputs.tag }}
+          GITHUB_TAG: ${{ steps.meta.outputs.tag }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |-
-          nix develop -c ./cli.sh push_helm_chart "${GITHUB_TAG}" "oci://ghcr.io/shopstic/chart-toothpick:${GITHUB_TAG}"
+          export HELM_REGISTRY_CONFIG=/home/runner/.docker/config.json
+
+          CHART_VERSION=${GITHUB_TAG:-"1.0.0-${GITHUB_SHA}"}
+          APP_VERSION=${GITHUB_TAG:-"${GITHUB_SHA}"}
+
+          nix develop '.#helmShell' -v -c ./cli.sh push_helm_chart "${CHART_VERSION}" "${APP_VERSION}" "oci://ghcr.io/shopstic/toothpick/chart"

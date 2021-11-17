@@ -1,0 +1,18 @@
+name: Decrypt git-crypt
+description: Decrypt git-crypt
+inputs:
+  gitCryptGpgKey:
+    description: git-crypt gpg key
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Decrypt
+      shell: bash
+      env:
+        GIT_CRYPT_GPG_KEY: ${{ inputs.gitCryptGpgKey }}
+      run: |-
+        sudo apt-get update
+        sudo apt-get install -y git-crypt
+        printenv GIT_CRYPT_GPG_KEY | base64 -d | gpg --import
+        git-crypt unlock
