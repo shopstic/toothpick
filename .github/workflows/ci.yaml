@@ -38,9 +38,6 @@ jobs:
           nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
           nixCacheS3SecretAccessKey: ${{ secrets.NIX_CACHE_S3_SECRET_ACCESS_KEY }}
 
-      - name: Build dev env
-        run: nix build -L -v --no-link '.#packages.${{ matrix.arch }}.devEnv'
-
       - name: Build apps
         run: nix build -L -v --no-link '.#defaultPackage.${{ matrix.arch }}'
 
@@ -53,12 +50,6 @@ jobs:
           nixOutput: .#defaultPackage.${{ matrix.arch }}
           nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
 
-      - name: Cache dev env
-        uses: shopstic/tailscale-nix-builder/cache@d9c5d745b8fad9cc12597a1b3410bb4d51292e90
-        with:
-          nixOutput: .#packages.${{ matrix.arch }}.devEnv
-          nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
-          
   build-images:
     name: Build images
     runs-on: ubuntu-20.04
