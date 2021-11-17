@@ -6,7 +6,6 @@ push_helm_chart() {
   export HELM_APP_VERSION=${2:?"Helm chart app version is required"}
   export HELM_CHART_REF=${3:?"Helm chart ref is required"}
   export HELM_EXPERIMENTAL_OCI=1
-  # export HELM_REGISTRY_CONFIG=/home/runner/.docker/config.json
 
   local OUT
   OUT=$(mktemp -d)
