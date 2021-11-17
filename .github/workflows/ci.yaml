@@ -26,7 +26,7 @@ jobs:
         timeout-minutes: 2
 
       - name: Setup
-        uses: shopstic/tailscale-nix-builder/setup@d9c5d745b8fad9cc12597a1b3410bb4d51292e90
+        uses: shopstic/tailscale-nix-builder/setup@d1e3ed3bc198679ac45bc3d060b65fc62161ba22
         timeout-minutes: 1
         with:
           tailscaleAuthKey: ${{ secrets.TAILSCALE_AUTHKEY }}
@@ -41,7 +41,7 @@ jobs:
         run: sudo tailscale logout
 
       - name: Cache apps
-        uses: shopstic/tailscale-nix-builder/cache@d9c5d745b8fad9cc12597a1b3410bb4d51292e90
+        uses: shopstic/tailscale-nix-builder/cache@d1e3ed3bc198679ac45bc3d060b65fc62161ba22
         with:
           nixOutput: .#defaultPackage.${{ matrix.arch }}
           nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
@@ -53,8 +53,8 @@ jobs:
     strategy:
       matrix:
         arch:
-          - x86_64-linux
-          - aarch64-linux
+          - x86_64
+          - aarch64
     steps:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
@@ -65,7 +65,7 @@ jobs:
         timeout-minutes: 2
 
       - name: Setup
-        uses: shopstic/tailscale-nix-builder/setup@d9c5d745b8fad9cc12597a1b3410bb4d51292e90
+        uses: shopstic/tailscale-nix-builder/setup@d1e3ed3bc198679ac45bc3d060b65fc62161ba22
         timeout-minutes: 1
         with:
           tailscaleAuthKey: ${{ secrets.TAILSCALE_AUTHKEY }}
@@ -87,7 +87,7 @@ jobs:
 
       - name: Build container images
         run: |-
-          nix build -L -v '.#packages.${{ matrix.arch }}.serverImage' 
+          nix build -L -v '.#packages.${{ matrix.arch }}-linux.serverImage' 
 
       - name: Push
         env:
@@ -101,6 +101,36 @@ jobs:
       - name: Logout
         run: sudo tailscale logout
 
+  push-manifest:
+    name: Push multi-arch manifest
+    runs-on: ubuntu-20.04
+    needs: build-images
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - run: chmod +r ~/.docker/config.json
+
+      - name: Derive branch and tag
+        id: meta
+        uses: ./.github/actions/derive-branch-tag
+
+      - name: Push
+        env:
+          GITHUB_TAG: ${{ steps.meta.outputs.tag }}
+          GITHUB_SHA: ${{ github.sha }}  
+        run: |-
+          TAG=${GITHUB_TAG:-"${GITHUB_SHA}"}
+          docker manifest create \
+            shopstic/toothpick-server:"${TAG}" \
+            --amend shopstic/toothpick-server:x86_64-"${TAG}" \
+            --amend shopstic/toothpick-server:aarch64-"${TAG}"
+
+          docker manifest push shopstic/toothpick-server:"${TAG}"
+  
   build-helm-chart:
     name: Build Helm chart
     runs-on: ubuntu-20.04
@@ -108,7 +138,7 @@ jobs:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
       - name: Setup
-        uses: shopstic/tailscale-nix-builder/setup@d9c5d745b8fad9cc12597a1b3410bb4d51292e90
+        uses: shopstic/tailscale-nix-builder/setup@d1e3ed3bc198679ac45bc3d060b65fc62161ba22
         timeout-minutes: 1
         with:
           nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
