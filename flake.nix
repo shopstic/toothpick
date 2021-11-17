@@ -48,9 +48,8 @@
           devShell = pkgs.mkShellNoCC {
             buildInputs = toothpick.buildInputs ++ builtins.attrValues {
               inherit (pkgs)
-                skopeo
-                kubernetes-helm
-                yq-go
+                git-crypt
+                gnupg
                 ;
             };
           };
@@ -60,10 +59,10 @@
               buildInputs = builtins.attrValues {
                 inherit (pkgs)
                   kubernetes-helm
+                  yq-go
                   ;
               };
             };
-            devEnv = devShell.inputDerivation;
             server = toothpick.server;
             dockerServer = toothpick.dockerServer;
             runnerJre = toothpickRunnerJre;

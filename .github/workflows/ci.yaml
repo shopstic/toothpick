@@ -7,35 +7,44 @@ defaults:
     shell: bash
 
 jobs:
-  # build-apps:
-  #   name: Build apps
-  #   runs-on: ubuntu-20.04
-  #   strategy:
-  #     matrix:
-  #       arch:
-  #         - x86_64-linux
-  #         - x86_64-darwin
-  #         - aarch64-darwin    
-  #   steps:
-  #     - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
+  build-apps:
+    name: Build apps
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        arch:
+          - x86_64-linux
+          - x86_64-darwin
+          - aarch64-darwin    
+    steps:
+      - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
-  #     - name: Setup
-  #       uses: shopstic/tailscale-nix-builder/setup@d59671307e2d1555ecbb89d2d510a51ca0d5688d
-  #       timeout-minutes: 1
-  #       with:
-  #         tailscaleAuthKey: ${{ secrets.TAILSCALE_AUTHKEY }}
-  #         nixBuildSshKey: ${{ secrets.NIX_BUILD_SSH_KEY }}
-  #         nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
-  #         nixCacheS3SecretAccessKey: ${{ secrets.NIX_CACHE_S3_SECRET_ACCESS_KEY }}
+      - name: Setup
+        uses: shopstic/tailscale-nix-builder/setup@d59671307e2d1555ecbb89d2d510a51ca0d5688d
+        timeout-minutes: 1
+        with:
+          tailscaleAuthKey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          nixBuildSshKey: ${{ secrets.NIX_BUILD_SSH_KEY }}
+          nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
+          nixCacheS3SecretAccessKey: ${{ secrets.NIX_CACHE_S3_SECRET_ACCESS_KEY }}
 
-  #     - name: Build apps
-  #       run: nix build -L -v --no-link '.#defaultPackage.${{ matrix.arch }}'
+      - name: Decrypt
+        env:
+          GIT_CRYPT_GPG_KEY: ${{ secrets.GIT_CRYPT_GPG_KEY }}
+        run: |-
+          cat <<EOF | nix develop -v -c bash
+          printenv GIT_CRYPT_GPG_KEY | base64 -d | gpg --import
+          git-crypt unlock
+          EOF
 
-  #     - name: Cache apps
-  #       uses: shopstic/tailscale-nix-builder/cache@5d038bf4bfb3dea2f3b588efe6388796e263c6d4
-  #       with:
-  #         nixOutput: .#defaultPackage.${{ matrix.arch }}
-  #         nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
+      - name: Build apps
+        run: nix build -L -v --no-link '.#defaultPackage.${{ matrix.arch }}'
+
+      - name: Cache apps
+        uses: shopstic/tailscale-nix-builder/cache@5d038bf4bfb3dea2f3b588efe6388796e263c6d4
+        with:
+          nixOutput: .#defaultPackage.${{ matrix.arch }}
+          nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
 
   # build-images:
   #   name: Build images
