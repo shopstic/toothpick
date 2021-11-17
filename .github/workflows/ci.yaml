@@ -47,38 +47,38 @@ jobs:
           nixOutput: .#defaultPackage.${{ matrix.arch }}
           nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
 
-  # build-images:
-  #   name: Build images
-  #   runs-on: ubuntu-20.04
-  #   needs: build-apps
-  #   strategy:
-  #     matrix:
-  #       arch:
-  #         - x86_64-linux
-  #         - aarch64-linux
-  #   steps:
-  #     - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
+  build-images:
+    name: Build images
+    runs-on: ubuntu-20.04
+    needs: build-apps
+    strategy:
+      matrix:
+        arch:
+          - x86_64-linux
+          - aarch64-linux
+    steps:
+      - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
-  #     - name: Setup
-  #       uses: shopstic/tailscale-nix-builder/setup@d59671307e2d1555ecbb89d2d510a51ca0d5688d
-  #       timeout-minutes: 1
-  #       with:
-  #         tailscaleAuthKey: ${{ secrets.TAILSCALE_AUTHKEY }}
-  #         nixBuildSshKey: ${{ secrets.NIX_BUILD_SSH_KEY }}
-  #         nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
-  #         nixCacheS3SecretAccessKey: ${{ secrets.NIX_CACHE_S3_SECRET_ACCESS_KEY }}
+      - name: Setup
+        uses: shopstic/tailscale-nix-builder/setup@d59671307e2d1555ecbb89d2d510a51ca0d5688d
+        timeout-minutes: 1
+        with:
+          tailscaleAuthKey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          nixBuildSshKey: ${{ secrets.NIX_BUILD_SSH_KEY }}
+          nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
+          nixCacheS3SecretAccessKey: ${{ secrets.NIX_CACHE_S3_SECRET_ACCESS_KEY }}
 
-  #     # - name: Login to Docker Hub
-  #     #   uses: docker/login-action@v1
-  #     #   with:
-  #     #     username: ${{ secrets.DOCKERHUB_USERNAME }}
-  #     #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # - name: Login to Docker Hub
+      #   uses: docker/login-action@v1
+      #   with:
+      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
+      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  #     # - run: chmod +r ~/.docker/config.json
+      # - run: chmod +r ~/.docker/config.json
 
-  #     - name: Build container images
-  #       run: |-
-  #         nix build -L --no-link '.#packages.${{ matrix.arch }}.serverImage' 
+      - name: Build container images
+        run: |-
+          nix build -L -v --no-link '.#packages.${{ matrix.arch }}.serverImage' 
 
   build-helm-chart:
     name: Build Helm chart
