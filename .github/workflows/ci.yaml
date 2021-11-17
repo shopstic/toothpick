@@ -111,8 +111,9 @@ jobs:
           echo "::set-output name=tag::${TAG}"
 
       - name: Build and push Helm Chart
-        if: steps.ref_name.outputs.tag != ''
+        # if: steps.ref_name.outputs.tag != ''
         env:
-          GITHUB_TAG: ${{ steps.ref_name.outputs.tag }}
+          # GITHUB_TAG: ${{ steps.ref_name.outputs.tag }}
+          GITHUB_TAG: ${{ github.sha }}
         run: |-
           nix develop -c ./cli.sh push_helm_chart "${GITHUB_TAG}" "oci://ghcr.io/shopstic/chart-toothpick:${GITHUB_TAG}"
