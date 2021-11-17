@@ -5,6 +5,7 @@
 , sbt
 , rsync
 , makeWrapper
+, git-crypt
 }:
 stdenv.mkDerivation {
   pname = "toothpick";
@@ -30,6 +31,7 @@ stdenv.mkDerivation {
     sbt
     rsync
     makeWrapper
+    git-crypt
   ];
 
   configurePhase = ''

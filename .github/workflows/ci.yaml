@@ -31,7 +31,7 @@ jobs:
       - name: Decrypt
         env:
           GIT_CRYPT_GPG_KEY: ${{ secrets.GIT_CRYPT_GPG_KEY }}
-        timeout-minutes: 1
+        timeout-minutes: 2
         run: |-
           cat <<EOF | nix develop '.#gitCryptShell' --builders "" -v -c bash
           printenv GIT_CRYPT_GPG_KEY | base64 -d | gpg --import
