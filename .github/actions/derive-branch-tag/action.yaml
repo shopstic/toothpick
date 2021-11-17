@@ -22,8 +22,6 @@ runs:
 
         if [[ "${GITHUB_REF}" =~ ^refs/tags/.* ]]; then
           TAG=${GITHUB_REF#refs/tags/}
-        elif [[ "${BRANCH}" == "main" ]]; then
-          TAG=${GITHUB_SHA}
         fi
 
         echo "::set-output name=branch::${BRANCH}"
