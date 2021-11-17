@@ -87,7 +87,7 @@ jobs:
 
       - name: Build container images
         run: |-
-          nix build -L -v --no-link '.#packages.${{ matrix.arch }}.serverImage' 
+          nix build -L -v '.#packages.${{ matrix.arch }}.serverImage' 
 
       - name: Push
         env:
