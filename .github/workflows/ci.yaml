@@ -30,7 +30,7 @@ jobs:
           git-crypt unlock
 
       - name: Setup
-        uses: shopstic/tailscale-nix-builder/setup@d59671307e2d1555ecbb89d2d510a51ca0d5688d
+        uses: shopstic/tailscale-nix-builder/setup@3dbb07f52b69d6d1c18ef8e78e1416d4f8fc30e0
         timeout-minutes: 1
         with:
           tailscaleAuthKey: ${{ secrets.TAILSCALE_AUTHKEY }}
@@ -48,13 +48,13 @@ jobs:
         run: sudo tailscale logout
 
       - name: Cache apps
-        uses: shopstic/tailscale-nix-builder/cache@5d038bf4bfb3dea2f3b588efe6388796e263c6d4
+        uses: shopstic/tailscale-nix-builder/cache@3dbb07f52b69d6d1c18ef8e78e1416d4f8fc30e0
         with:
           nixOutput: .#defaultPackage.${{ matrix.arch }}
           nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
 
       - name: Cache dev env
-        uses: shopstic/tailscale-nix-builder/cache@5d038bf4bfb3dea2f3b588efe6388796e263c6d4
+        uses: shopstic/tailscale-nix-builder/cache@3dbb07f52b69d6d1c18ef8e78e1416d4f8fc30e0
         with:
           nixOutput: .#packages.${{ matrix.arch }}.devEnv
           nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
@@ -72,7 +72,7 @@ jobs:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
       - name: Setup
-        uses: shopstic/tailscale-nix-builder/setup@d59671307e2d1555ecbb89d2d510a51ca0d5688d
+        uses: shopstic/tailscale-nix-builder/setup@3dbb07f52b69d6d1c18ef8e78e1416d4f8fc30e0
         timeout-minutes: 1
         with:
           tailscaleAuthKey: ${{ secrets.TAILSCALE_AUTHKEY }}
@@ -102,7 +102,7 @@ jobs:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
       - name: Setup
-        uses: shopstic/tailscale-nix-builder/setup@d59671307e2d1555ecbb89d2d510a51ca0d5688d
+        uses: shopstic/tailscale-nix-builder/setup@3dbb07f52b69d6d1c18ef8e78e1416d4f8fc30e0
         timeout-minutes: 1
         with:
           nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}

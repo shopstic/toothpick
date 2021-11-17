@@ -50,6 +50,7 @@
           };
           defaultPackage = toothpick;
           packages = {
+            hello = pkgs.hello;
             devEnv = devShell.inputDerivation;
             helmShell = pkgs.mkShellNoCC {
               buildInputs = builtins.attrValues {
