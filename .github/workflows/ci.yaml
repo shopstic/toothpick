@@ -136,6 +136,7 @@ jobs:
   build-helm-chart:
     name: Build Helm chart
     runs-on: ubuntu-20.04
+    needs: build-images
     steps:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
