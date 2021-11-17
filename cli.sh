@@ -7,14 +7,20 @@ push_helm_chart() {
   export HELM_EXPERIMENTAL_OCI=1
   export HELM_REGISTRY_CONFIG=/home/runner/.docker/config.json
 
-  yq e '.appVersion = env(HELM_APP_VERSION)' -i ./charts/toothpick/Chart.yaml
-  yq e '.appVersion = env(HELM_APP_VERSION)' -i ./charts/toothpick/charts/toothpick-master/Chart.yaml
-  yq e '.appVersion = env(HELM_APP_VERSION)' -i ./charts/toothpick/charts/toothpick-worker/Chart.yaml
-  yq e '.toothpick-master.image.tag = env(HELM_APP_VERSION)' -i ./charts/toothpick/values.yaml
-  yq e '.toothpick-worker.image.tag = env(HELM_APP_VERSION)' -i ./charts/toothpick/values.yaml
+  local OUT
+  OUT=$(mktemp -d)
+  trap "rm -Rf ${OUT}" EXIT
 
-  helm chart save ./charts/toothpick "ghcr.io/shopstic/chart-toothpick:${HELM_APP_VERSION}"
-  helm chart push "${HELM_CHART_REF}"
+  cp -R ./charts/toothpick "${OUT}/"
+
+  yq e '.appVersion = env(HELM_APP_VERSION)' -i "${OUT}/toothpick/Chart.yaml"
+  yq e '.appVersion = env(HELM_APP_VERSION)' -i "${OUT}/toothpick/charts/toothpick-master/Chart.yaml"
+  yq e '.appVersion = env(HELM_APP_VERSION)' -i "${OUT}/toothpick/charts/toothpick-worker/Chart.yaml"
+  yq e '.toothpick-master.image.tag = env(HELM_APP_VERSION)' -i "${OUT}/toothpick/values.yaml"
+  yq e '.toothpick-worker.image.tag = env(HELM_APP_VERSION)' -i "${OUT}/toothpick/values.yaml"
+
+  helm package --app-version "${HELM_APP_VERSION}" "${OUT}/toothpick" -d "${OUT}/packaged"
+  helm push "${OUT}/packaged/toothpick-1.0.0.tgz" "${HELM_CHART_REF}"
 }
 
 ci_build_in_shell() {

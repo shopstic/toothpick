@@ -1,37 +1,40 @@
 {
   "nodes": {
-    "flake-utils": {
-      "locked": {
-        "lastModified": 1634851050,
-        "narHash": "sha256-N83GlSGPJJdcqhUxSCS/WwW5pksYf3VP1M13cDRTSVA=",
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "rev": "c91f3de5adaf1de973b797ef7485e441a65b8935",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "type": "github"
-      }
-    },
-    "gitignore": {
+    "fdb": {
       "inputs": {
+        "flakeUtils": [
+          "flakeUtils"
+        ],
         "nixpkgs": [
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1635165013,
-        "narHash": "sha256-o/BdVjNwcB6jOmzZjOH703BesSkkS5O7ej3xhyO8hAY=",
-        "owner": "hercules-ci",
-        "repo": "gitignore.nix",
-        "rev": "5b9e0ff9d3b551234b4f3eb3983744fa354b17f1",
+        "lastModified": 1637044763,
+        "narHash": "sha256-eV0PVYvG1orm7EMNxsiDvTmDKA3ysF8gyGXS7+ucZe4=",
+        "owner": "shopstic",
+        "repo": "nix-fdb",
+        "rev": "6db2a9758aedc155e814f6f231d676b188cd4977",
         "type": "github"
       },
       "original": {
-        "owner": "hercules-ci",
-        "repo": "gitignore.nix",
+        "owner": "shopstic",
+        "repo": "nix-fdb",
+        "type": "github"
+      }
+    },
+    "flakeUtils": {
+      "locked": {
+        "lastModified": 1637014545,
+        "narHash": "sha256-26IZAc5yzlD9FlDT54io1oqG/bBoyka+FJk5guaX4x4=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "bba5dcc8e0b20ab664967ad83d24d64cb64ec4f4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
         "type": "github"
       }
     },
@@ -51,8 +54,8 @@
     },
     "root": {
       "inputs": {
-        "flake-utils": "flake-utils",
-        "gitignore": "gitignore",
+        "fdb": "fdb",
+        "flakeUtils": "flakeUtils",
         "nixpkgs": "nixpkgs"
       }
     }

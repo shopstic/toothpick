@@ -6,3 +6,4 @@ target
 /.idea
 /.vscode
 /test-console.sh
+/.metals

@@ -16,7 +16,7 @@ object ZioTestInterruption extends zio.App {
 
     val app = for {
       fib <- test("foo")
-        .raceFirst(test("bar").uninterruptible).forkDaemon
+        .raceFirst(test("bar")).forkDaemon
       _ <- fib.join.raceFirst(ZIO.unit.delay(3.seconds))
     } yield ()
 

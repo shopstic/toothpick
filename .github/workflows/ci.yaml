@@ -1,94 +1,87 @@
 name: CI Workflow
 
-on: [push, pull_request]
+on: [push]
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  build-ci-env:
-    name: Build CI environment
-    runs-on: ubuntu-20.04
-    outputs:
-      image: ${{ steps.buildkit.outputs.image }}:${{ steps.buildkit.outputs.tag }}
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-
-      - run: chmod +r ~/.docker/config.json
-
-      - name: Build and push shell Docker image
-        id: buildkit
-        uses: shopstic/buildkit-action@1.0.12
-        with:
-          context: ${{ github.workspace }}/images/shell
-          image: ghcr.io/shopstic/toothpick-ci
-          tag: ${{ hashFiles('images/shell/*') }}
-          skipIfExists: true
-
-  build-server-base:
-    name: Build base Docker image for Toothpick Server
-    runs-on: ubuntu-20.04
-    outputs:
-      image: ${{ steps.buildkit.outputs.image }}:${{ steps.buildkit.outputs.tag }}
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-
-      - run: chmod +r ~/.docker/config.json
-
-      - name: Build and push shell Docker image
-        id: buildkit
-        uses: shopstic/buildkit-action@1.0.12
-        with:
-          context: ${{ github.workspace }}/images/server-base
-          image: ghcr.io/shopstic/toothpick-server-base
-          tag: ${{ hashFiles('images/server-base/*') }}
-          skipIfExists: true
-
   build-apps:
-    name: Build applications
-    needs:
-      - build-ci-env
-      - build-server-base
+    name: Build apps
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        arch:
+          - x86_64-linux
+          - x86_64-darwin
+          - aarch64-darwin    
+    steps:
+      - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
+
+      - name: Setup
+        uses: shopstic/tailscale-nix-builder/setup@d59671307e2d1555ecbb89d2d510a51ca0d5688d
+        timeout-minutes: 1
+        with:
+          tailscaleAuthKey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          nixBuildSshKey: ${{ secrets.NIX_BUILD_SSH_KEY }}
+          nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
+          nixCacheS3SecretAccessKey: ${{ secrets.NIX_CACHE_S3_SECRET_ACCESS_KEY }}
+
+      - name: Build apps
+        run: nix build -L -v --no-link '.#defaultPackage.${{ matrix.arch }}'
+
+      - name: Cache apps
+        uses: shopstic/tailscale-nix-builder/cache@5d038bf4bfb3dea2f3b588efe6388796e263c6d4
+        with:
+          nixOutput: .#defaultPackage.${{ matrix.arch }}
+          nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
+
+  build-images:
+    name: Build images
+    runs-on: ubuntu-20.04
+    needs: build-apps
+    strategy:
+      matrix:
+        arch:
+          - x86_64-linux
+          - aarch64-linux
+    steps:
+      - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
+
+      - name: Setup
+        uses: shopstic/tailscale-nix-builder/setup@d59671307e2d1555ecbb89d2d510a51ca0d5688d
+        timeout-minutes: 1
+        with:
+          tailscaleAuthKey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          nixBuildSshKey: ${{ secrets.NIX_BUILD_SSH_KEY }}
+          nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
+          nixCacheS3SecretAccessKey: ${{ secrets.NIX_CACHE_S3_SECRET_ACCESS_KEY }}
+
+      # - name: Login to Docker Hub
+      #   uses: docker/login-action@v1
+      #   with:
+      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
+      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # - run: chmod +r ~/.docker/config.json
+
+      - name: Build container images
+        run: |-
+          nix build -L --no-link '.#packages.${{ matrix.arch }}.serverImage' 
+
+  build-helm-chart:
+    name: Build Helm chart
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
-      - name: Cache coursier
-        uses: actions/cache@v2
+      - name: Setup
+        uses: shopstic/tailscale-nix-builder/setup@d59671307e2d1555ecbb89d2d510a51ca0d5688d
+        timeout-minutes: 1
         with:
-          path: |
-            ~/.cache
-            ~/.sbt
-          key: coursier-v4-${{ hashFiles('build.sbt') }}
-          restore-keys: |
-            coursier-v4-
-
-      - name: Cache sbt targets
-        uses: actions/cache@v2
-        with:
-          path: |
-            ./target
-            ./**/target
-            !./toothpick-server/target/docker
-            !./toothpick-runner/target/universal
-          key: target-v4-${{ github.sha }}
-          restore-keys: |
-            target-v4-
+          nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
+          nixCacheS3SecretAccessKey: ${{ secrets.NIX_CACHE_S3_SECRET_ACCESS_KEY }}
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v1
@@ -96,12 +89,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - run: chmod +r ~/.docker/config.json
 
@@ -123,66 +110,9 @@ jobs:
           echo "::set-output name=branch::${BRANCH}"
           echo "::set-output name=tag::${TAG}"
 
-      - name: Build
-        env:
-          SHELL_IMAGE: ${{ needs.build-ci-env.outputs.image }}
-          SERVER_BASE_IMAGE: ${{ needs.build-server-base.outputs.image }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TAG: ${{ steps.ref_name.outputs.tag }}
-        run: |-
-          echo "Restored cache stats ---------------------------------------------"
-          du -sh ~/.cache || true
-          find . -type d -name target | xargs -I{} du -sh {}
-          echo "------------------------------------------------------------------"
-          echo "Current user $(id --user):$(id --group)"
-
-          mkdir -p ~/.sbt ~/.cache
-
-          ./cli.sh ci_build_in_shell
-
-      - name: Build and push server Docker image
-        uses: shopstic/buildkit-action@1.0.12
-        if: steps.ref_name.outputs.tag != ''
-        with:
-          context: ${{ github.workspace }}/toothpick-server/target/docker/stage
-          image: shopstic/toothpick-server
-          tag: ${{ steps.ref_name.outputs.tag }}
-          additionalTags: latest
-          skipIfExists: true
-
-      - name: Build and push runner Docker image
-        uses: shopstic/buildkit-action@1.0.12
-        if: steps.ref_name.outputs.tag != ''
-        with:
-          context: ${{ github.workspace }}/toothpick-runner/target/universal/stage
-          image: shopstic/toothpick-runner-bin
-          tag: ${{ steps.ref_name.outputs.tag }}
-          additionalTags: latest
-          skipIfExists: true
-          
       - name: Build and push Helm Chart
         if: steps.ref_name.outputs.tag != ''
         env:
-          SHELL_IMAGE: ${{ needs.build-ci-env.outputs.image }}
           GITHUB_TAG: ${{ steps.ref_name.outputs.tag }}
         run: |-
-          cat <<EOF | docker run \
-            --workdir /repo \
-            -i \
-            --rm \
-            -e GITHUB_TAG \
-            -v "${GITHUB_WORKSPACE}:/repo" \
-            -v "${HOME}/.docker/config.json:/home/runner/.docker/config.json" \
-            "${SHELL_IMAGE}" \
-            bash -l
-          set -euo pipefail
-
-          ./cli.sh push_helm_chart "${GITHUB_TAG}" "ghcr.io/shopstic/chart-toothpick:${GITHUB_TAG}"
-
-          EOF
-
-      - name: Clean up before caching
-        run: |
-          # Remove these when this issue is fixed https://github.com/actions/toolkit/issues/713
-          rm -Rf ./*/target/universal
-          rm -Rf ./*/target/docker
+          nix develop -c ./cli.sh push_helm_chart "${GITHUB_TAG}" "oci://ghcr.io/shopstic/chart-toothpick:${GITHUB_TAG}"

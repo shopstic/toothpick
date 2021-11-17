@@ -1,8 +1,8 @@
 import sbt._
 
 object Dependencies {
-  val CHOPSTICKS_VERSION = "3.5.0"
-  val ZIO_VERSION = "1.0.11"
+  val CHOPSTICKS_VERSION = "3.6.0"
+  val ZIO_VERSION = "1.0.12"
 
   lazy val akkaGrpcRuntimeDeps = Seq(
     "com.lightbend.akka.grpc" %% "akka-grpc-runtime" % "2.0.0"
@@ -37,7 +37,7 @@ object Dependencies {
   )
 
   lazy val fastparseDeps = Seq(
-    "com.lihaoyi" %% "fastparse" % "2.3.2"
+    "com.lihaoyi" %% "fastparse" % "2.3.3"
   )
 
   lazy val grpcNettyDeps = Seq(
@@ -49,16 +49,16 @@ object Dependencies {
   )
 
   lazy val jsoniterDeps = Seq(
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.10.0",
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.10.0" % "provided"
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.11.1",
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.11.1" % "provided"
   )
 
   lazy val pureconfigEnumeratumDeps = Seq(
-    "com.github.pureconfig" %% "pureconfig-enumeratum" % "0.16.0"
+    "com.github.pureconfig" %% "pureconfig-enumeratum" % "0.17.0"
   )
 
   lazy val quicklensDeps = Seq(
-    "com.softwaremill.quicklens" %% "quicklens" % "1.7.4"
+    "com.softwaremill.quicklens" %% "quicklens" % "1.7.5"
   )
 
   lazy val overrideDeps = Seq(
@@ -87,11 +87,11 @@ object Dependencies {
   )
 
   lazy val zioInteropReactivestreamsDeps = Seq(
-    "dev.zio" %% "zio-interop-reactivestreams" % "1.3.5"
+    "dev.zio" %% "zio-interop-reactivestreams" % "1.3.8"
   )
 
   lazy val zioDeps = Seq(
-    "io.github.kitlangton" %% "zio-magic" % "0.3.8",
+    "io.github.kitlangton" %% "zio-magic" % "0.3.10",
     "dev.zio" %% "zio" % ZIO_VERSION,
     "dev.zio" %% "zio-test" % ZIO_VERSION % "test",
     "dev.zio" %% "zio-test-sbt" % ZIO_VERSION % "test"

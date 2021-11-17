@@ -4,7 +4,7 @@ import Dependencies._
 //ThisBuild / githubRepository := "toothpick"
 ThisBuild / organization := "dev.toothpick"
 
-ThisBuild / scalaVersion := "2.13.6"
+ThisBuild / scalaVersion := "2.13.7"
 
 //ThisBuild / resolvers ++= Seq(
 //  Resolver.githubPackages("shopstic", "chopsticks")
@@ -14,6 +14,8 @@ ThisBuild / javacOptions := Seq("-encoding", "UTF-8")
 ThisBuild / scalacOptions := Build.scalacOptions
 
 ThisBuild / dependencyOverrides := Dependencies.overrideDeps
+// ThisBuild / dockerApiVersion := Some(DockerApiVersion(1, 41))
+// ThisBuild / dockerVersion := DockerVersion.parse("20.10.10")
 ThisBuild / PB.protocVersion := "3.17.3"
 
 lazy val api = Build

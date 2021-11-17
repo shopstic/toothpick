@@ -11,20 +11,20 @@ object TpIntellijServiceMessageParser {
 
   final case class TeamCityServiceMessage(name: String, attributes: Map[String, String])
 
-  private def parseLine[_: P] = P(TC_PREFIX ~ CharsWhile(_ != ' ').! ~ parseAttributes.rep ~ "]" ~ End)
+  private def parseLine[A: P] = P(TC_PREFIX ~ CharsWhile(_ != ' ').! ~ parseAttributes.rep ~ "]" ~ End)
 
   private def stringChars(c: Char) = c != '\'' && c != '|'
 
-  private def strChars[_: P] = P(CharsWhile(stringChars))
+  private def strChars[A: P] = P(CharsWhile(stringChars))
 
-  private def unicodeEscape[_: P] = P("0x" ~ hexDigit ~ hexDigit ~ hexDigit ~ hexDigit)
+  private def unicodeEscape[A: P] = P("0x" ~ hexDigit ~ hexDigit ~ hexDigit ~ hexDigit)
 
   @nowarn("cat=unused")
-  private def escape[_: P] = P("|" ~ (CharIn("|'nr[]") | unicodeEscape))
+  private def escape[A: P] = P("|" ~ (CharIn("|'nr[]") | unicodeEscape))
 
-  private def hexDigit[_: P] = P(CharIn("0-9a-fA-F"))
+  private def hexDigit[A: P] = P(CharIn("0-9a-fA-F"))
 
-  private def parseAttributes[_: P] =
+  private def parseAttributes[A: P] =
     P(CharsWhile(c => c != '=' && c != ' ').! ~ "=" ~ "'" ~/ (strChars | escape).rep.! ~ "'")
 
   def parse(line: String): Either[String, TeamCityServiceMessage] = {

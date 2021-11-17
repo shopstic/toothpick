@@ -1,31 +1,31 @@
 { fetchurl
 , stdenv
 , lib
-, makeWrapper
-, writeText
-, pullImage
-, buildLayeredImage
+, writeShellScriptBin
+, dockerTools
 , toothpickServer
+, fdbLib
 }:
 let
-  fdbBindings = fetchurl {
-    url = "https://www.foundationdb.org/downloads/6.3.22/linux/libfdb_c_6.3.22.so";
-    sha256 = "19ai87m416ff1gz7rglpdmhd5539skhlagk4y0bwn56qkl2nmxva";
+  baseImage = dockerTools.pullImage {
+    imageName = "openjdk";
+    imageDigest = if stdenv.isx86_64 then "sha256:5352ab50afd260ab429b2debf82b3a5ba52b0785acff983f0f847798463871ab" else "sha256:f51998b423ae2adaa582ecd4d43d9e46bdc85d39683e8b9a6eea7ccba6815696";
+    sha256 = if stdenv.isx86_64 then "sha256-S+rW9bPZ8cjAO34vlxnkymAFD16lzGMtvzkajmlJWfM=" else "sha256-TokAsNOmsuNN3R28rxUF8mR92TMrfYrKEgAbr8wwE28=";
   };
-  baseImage = pullImage {
-    imageName = "eclipse-temurin";
-    imageDigest = "sha256:c2993cc66158bab7c8682f85cb7f3ca64c4b6d29fc2305f6aa640a5423b6524a";
-    sha256 = "sha256-vcuCk29tN/EIAoUfHQVYO84CpmoaDGUaDlpRtFXOilc=";
-  };
+  entrypoint = writeShellScriptBin "toothpick-server" ''
+    sed -i 's/#networkaddress.cache.ttl=-1/networkaddress.cache.ttl=5/g' /usr/local/openjdk-11/conf/security/java.security && \
+    sed -i 's/networkaddress.cache.negative.ttl=10/networkaddress.cache.negative.ttl=1/g' /usr/local/openjdk-11/conf/security/java.security
+    exec ${toothpickServer}/bin/toothpick-server
+  '';
 in
-buildLayeredImage
+dockerTools.buildLayeredImage
 {
   name = "toothpick-server";
   fromImage = baseImage;
   config = {
     Env = [
-      "LD_LIBRARY_PATH=${fdbBindings}"
+      "LD_LIBRARY_PATH=${fdbLib}"
     ];
-    Cmd = [ "${toothpickServer}/bin/toothpick-server" ];
+    Cmd = [ "${entrypoint}/bin/toothpick-server" ];
   };
 }

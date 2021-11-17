@@ -11,7 +11,6 @@ import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser.{
   TpZTestContext
 }
 import zio.{Task, ZManaged}
-import zio.test.Assertion._
 import zio.test.{DefaultRunnableSpec, _}
 
 import scala.collection.immutable.Queue
@@ -34,7 +33,7 @@ object TpIntellijTestRunArgsParserSpec extends DefaultRunnableSpec {
       val expected = readFromStream[Cfg](Resource.getAsStream(s"fixtures/run-args/$number-expected.json"))
       val parsed = TpIntellijTestRunArgsParser.parse(args)
 
-      assert(parsed)(equalTo(expected))
+      assertTrue(parsed == expected)
     }
   }
 
@@ -71,23 +70,21 @@ object TpIntellijTestRunArgsParserSpec extends DefaultRunnableSpec {
 
           val parsed = TpIntellijTestRunArgsParser.parse(args)
 
-          assert(parsed)(equalTo {
-            TpScalaTestContext(
-              TpRunnerEnvironment(
-                classpath = List("/foo/bar/baz.jar", "/foo/bar/boo.jar"),
-                runnerClass = "org.jetbrains.plugins.scala.testingSupport.scalaTest.ScalaTestRunner",
-                systemProperties = List("file.encoding=UTF-8")
+          assertTrue(parsed == TpScalaTestContext(
+            TpRunnerEnvironment(
+              classpath = List("/foo/bar/baz.jar", "/foo/bar/boo.jar"),
+              runnerClass = "org.jetbrains.plugins.scala.testingSupport.scalaTest.ScalaTestRunner",
+              systemProperties = List("file.encoding=UTF-8")
+            ),
+            filters = Queue(
+              TpRunnerSuiteFilter(
+                suiteClassName = "foo.bar.baz.Foo"
               ),
-              filters = Queue(
-                TpRunnerSuiteFilter(
-                  suiteClassName = "foo.bar.baz.Foo"
-                ),
-                TpRunnerSuiteFilter(
-                  suiteClassName = "foo.bar.baz.Boom"
-                )
+              TpRunnerSuiteFilter(
+                suiteClassName = "foo.bar.baz.Boom"
               )
             )
-          })
+          ))
         }
       }
     }
