@@ -38,6 +38,29 @@
         "type": "github"
       }
     },
+    "hotPot": {
+      "inputs": {
+        "flakeUtils": [
+          "flakeUtils"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1637313538,
+        "narHash": "sha256-xEbteaFuJe5n4m5NL7QoEro23LxpsRj2/GdCYovSnso=",
+        "owner": "shopstic",
+        "repo": "nix-hot-pot",
+        "rev": "66e433b514c12ec955d9530131b00b3b51c68f57",
+        "type": "github"
+      },
+      "original": {
+        "owner": "shopstic",
+        "repo": "nix-hot-pot",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1636637818,
@@ -48,14 +71,17 @@
         "type": "github"
       },
       "original": {
-        "id": "nixpkgs",
-        "type": "indirect"
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "29830319abf5a925921885974faae5509312b940",
+        "type": "github"
       }
     },
     "root": {
       "inputs": {
         "fdb": "fdb",
         "flakeUtils": "flakeUtils",
+        "hotPot": "hotPot",
         "nixpkgs": "nixpkgs"
       }
     }

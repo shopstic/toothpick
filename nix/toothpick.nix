@@ -1,6 +1,5 @@
 { lib
 , stdenv
-, mkShellNoCC
 , jdk
 , sbt
 , rsync
@@ -14,7 +13,7 @@ stdenv.mkDerivation {
     {
       path = ../.;
       name = "src";
-      filter = (path: type:
+      filter = (path: /* type */_:
         lib.hasInfix "/toothpick-" path ||
         lib.hasInfix "/project" path ||
         lib.hasSuffix ".sbt" path ||

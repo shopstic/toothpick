@@ -2,6 +2,7 @@
   description = "Toothpick";
 
   inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/29830319abf5a925921885974faae5509312b940";
     flakeUtils = {
       url = "github:numtide/flake-utils";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -11,14 +12,19 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flakeUtils.follows = "flakeUtils";
     };
+    hotPot = {
+      url = "github:shopstic/nix-hot-pot";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flakeUtils.follows = "flakeUtils";
+    };
   };
 
-  outputs = { self, nixpkgs, flakeUtils, fdb }:
+  outputs = { self, nixpkgs, flakeUtils, fdb, hotPot }:
     flakeUtils.lib.eachSystem [ "x86_64-darwin" "aarch64-darwin" "x86_64-linux" "aarch64-linux" ]
       (system:
         let
-          nativePkgs = nixpkgs.legacyPackages.${system};
-          pkgs = nixpkgs.legacyPackages.${system};
+          pkgs = import nixpkgs { inherit system; };
+
           fdbLib = pkgs.runCommandLocal "fdb-lib" { } ''
             cp -R ${fdb.defaultPackage.${system}}/lib $out
           '';
@@ -29,7 +35,7 @@
               sbt = toothpickPkgs.sbt.overrideAttrs (_: {
                 postPatch = "";
               });
-              jdk = toothpickPkgs.jdk11;
+              jdk = toothpickPkgs.jdk11_headless;
             };
 
 
@@ -37,6 +43,7 @@
             {
               toothpickServer = toothpick.server;
               inherit fdbLib;
+              buildahBuild = pkgs.callPackage hotPot.lib.buildahBuild;
             };
 
           toothpickRunnerJre = pkgs.callPackage ./nix/runner-jre.nix {
