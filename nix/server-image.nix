@@ -2,7 +2,7 @@
 , dockerTools
 , toothpickServer
 , fdbLib
-, writeText
+, writeTextDir
 , buildahBuild
 , dumb-init
 }:
@@ -14,13 +14,14 @@ let
 
   baseImage = buildahBuild
     {
-      dockerFile = writeText "Dockerfile" ''
+      context = writeTextDir "Dockerfile" ''
         FROM docker.io/library/openjdk@${baseImageDigest}
 
         RUN \
           sed -i 's/#networkaddress.cache.ttl=-1/networkaddress.cache.ttl=5/g' /usr/local/openjdk-11/conf/security/java.security && \
           sed -i 's/networkaddress.cache.negative.ttl=10/networkaddress.cache.negative.ttl=1/g' /usr/local/openjdk-11/conf/security/java.security
       '';
+      squash = false;
       outputHash =
         if stdenv.isx86_64 then
           "sha256-4fABHGeG2i7IeSftH3UkRcR6UlQ8j+hP4QVC4HEt9Ao=" else
