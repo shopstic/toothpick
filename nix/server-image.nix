@@ -4,6 +4,7 @@
 , fdbLib
 , writeText
 , buildahBuild
+, dumb-init
 }:
 let
   baseImageDigest =
@@ -34,6 +35,6 @@ dockerTools.buildLayeredImage
     Env = [
       "LD_LIBRARY_PATH=${fdbLib}"
     ];
-    Cmd = [ "${toothpickServer}/bin/toothpick-server" ];
+    Cmd = [ "${dumb-init}/bin/dumb-init" "--" "${toothpickServer}/bin/toothpick-server" ];
   };
 }
