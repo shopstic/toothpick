@@ -7,8 +7,8 @@ defaults:
     shell: bash
 
 jobs:
-  build-apps:
-    name: Build apps
+  build-runner:
+    name: Build runner
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -34,22 +34,23 @@ jobs:
           nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
           nixCacheS3SecretAccessKey: ${{ secrets.NIX_CACHE_S3_SECRET_ACCESS_KEY }}
 
-      - name: Build apps
-        run: nix build -L -v --no-link '.#defaultPackage.${{ matrix.arch }}'
+      - name: Build runner
+        run: |-
+          nix build -L -v --no-link '.#packages.${{ matrix.arch }}.runnerJre'
 
       - name: Logout
         run: sudo tailscale logout
 
-      - name: Cache apps
+      - name: Cache runner
         uses: shopstic/tailscale-nix-builder/cache@1238e0a09d58f0a1a48104a1ccf2a47e825f01f8
         with:
-          nixOutput: .#defaultPackage.${{ matrix.arch }}
+          nixOutput: .#packages.${{ matrix.arch }}.runnerJre
           nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
 
   build-images:
     name: Build images
     runs-on: ubuntu-20.04
-    needs: build-apps
+    needs: build-runner
     strategy:
       matrix:
         arch:

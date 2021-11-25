@@ -80,6 +80,9 @@
         {
           inherit devShell;
           defaultPackage = toothpick;
+          devShells = {
+            inherit helmShell skopeoShell;
+          };
           packages = {
             sbtDebug = pkgs.dockerTools.buildImage {
               name = "sbt-debug";
@@ -90,7 +93,6 @@
             deps = toothpickDeps;
             hello = pkgs.hello;
             devEnv = devShell.inputDerivation;
-            inherit helmShell skopeoShell;
             server = toothpick.server;
             dockerServer = toothpick.dockerServer;
             runnerJre = toothpickRunnerJre;
