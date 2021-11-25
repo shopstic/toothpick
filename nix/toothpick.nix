@@ -4,6 +4,7 @@
 , sbt
 , rsync
 , makeWrapper
+, toothpickDeps
 }:
 stdenv.mkDerivation {
   pname = "toothpick";
@@ -17,12 +18,9 @@ stdenv.mkDerivation {
         lib.hasInfix "/toothpick-" path ||
         lib.hasInfix "/project" path ||
         lib.hasSuffix ".sbt" path ||
-        lib.hasSuffix ".scalafmt.conf" path ||
-        lib.hasSuffix ".env" path
+        lib.hasSuffix ".scalafmt.conf" path
       );
     };
-
-  __noChroot = true;
 
   buildInputs = [
     jdk
@@ -32,27 +30,17 @@ stdenv.mkDerivation {
   ];
 
   configurePhase = ''
-    export PROTOC_CACHE="$TMPDIR/protoc_cache";
-    export COURSIER_CACHE="$TMPDIR/coursier";
-    _SBT_OPTS=(
-      "-Dsbt.global.base=$TMPDIR/sbt"
-      "-Dsbt.ivy.home=$TMPDIR/ivy"
-      "--illegal-access=deny"
-      "--add-opens"
-      "java.base/java.util=ALL-UNNAMED"
-      "--add-opens"
-      "java.base/java.lang=ALL-UNNAMED"
-      "-Xmx4g"
-      "-Xss6m"
-    );
+    cp -R "${toothpickDeps}/cache" "$TMPDIR/"
+    ls -la "$TMPDIR/cache"
 
-    export SBT_OPTS="''${_SBT_OPTS[*]}"
+    export XDG_CACHE_HOME="$TMPDIR/cache"
+    chmod -R +w "$XDG_CACHE_HOME"
+    
+    export PROTOC_CACHE="$XDG_CACHE_HOME/protoc_cache";
+    export COURSIER_CACHE="$XDG_CACHE_HOME/coursier";
 
-    echo "PROTOC_CACHE=$PROTOC_CACHE"
-    echo "COURSIER_CACHE=$COURSIER_CACHE"
+    export SBT_OPTS="-Dsbt.global.base=$XDG_CACHE_HOME/sbt -Dsbt.ivy.home=$XDG_CACHE_HOME/ivy -Xmx4g -Xss6m"
     echo "SBT_OPTS=$SBT_OPTS"
-
-    source ./.env
 
     sbt --client cq < <(echo q)
     sbt --client 'set server / dockerApiVersion := Some(com.typesafe.sbt.packager.docker.DockerApiVersion(1, 41))'

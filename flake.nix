@@ -30,14 +30,19 @@
           '';
           toothpickSystem = if system == "aarch64-linux" then "x86_64-linux" else system;
           toothpickPkgs = nixpkgs.legacyPackages.${toothpickSystem};
-          toothpick = toothpickPkgs.callPackage ./nix/toothpick.nix
-            {
-              sbt = toothpickPkgs.sbt.overrideAttrs (_: {
-                postPatch = "";
-              });
-              jdk = toothpickPkgs.jdk11_headless;
-            };
 
+          sbt = toothpickPkgs.sbt.overrideAttrs (_: {
+            postPatch = "";
+          });
+          jdk = toothpickPkgs.jdk11_headless;
+
+          toothpickDeps = toothpickPkgs.callPackage ./nix/deps.nix {
+            inherit sbt jdk;
+          };
+          
+          toothpick = toothpickPkgs.callPackage ./nix/toothpick.nix {
+            inherit sbt jdk toothpickDeps;
+          };
 
           toothpickServerImage = pkgs.callPackage ./nix/server-image.nix
             {
@@ -76,6 +81,13 @@
           inherit devShell;
           defaultPackage = toothpick;
           packages = {
+            sbtDebug = pkgs.dockerTools.buildImage {
+              name = "sbt-debug";
+              contents = [
+                sbt jdk
+              ];
+            };
+            deps = toothpickDeps;
             hello = pkgs.hello;
             devEnv = devShell.inputDerivation;
             inherit helmShell skopeoShell;
