@@ -29,7 +29,7 @@
             cp -R ${fdb.defaultPackage.${system}}/lib $out
           '';
           toothpickSystem = if system == "aarch64-linux" then "x86_64-linux" else system;
-          toothpickPkgs = nixpkgs.legacyPackages.${toothpickSystem};
+          toothpickPkgs = import nixpkgs { system = toothpickSystem; };
 
           sbt = toothpickPkgs.sbt.overrideAttrs (_: {
             postPatch = "";
@@ -39,7 +39,7 @@
           toothpickDeps = toothpickPkgs.callPackage ./nix/deps.nix {
             inherit sbt jdk;
           };
-          
+
           toothpick = toothpickPkgs.callPackage ./nix/toothpick.nix {
             inherit sbt jdk toothpickDeps;
           };
@@ -53,7 +53,7 @@
 
           toothpickRunnerJre = pkgs.callPackage ./nix/runner-jre.nix {
             toothpickRunner = toothpick;
-            jre = pkgs.jre_minimal.override { jdk = pkgs.jdk11_headless; };
+            jre = pkgs.jdk11_headless;
           };
 
           skopeoShell = pkgs.mkShellNoCC {
@@ -87,7 +87,8 @@
             sbtDebug = pkgs.dockerTools.buildImage {
               name = "sbt-debug";
               contents = [
-                sbt jdk
+                sbt
+                jdk
               ];
             };
             deps = toothpickDeps;

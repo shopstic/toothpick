@@ -1,27 +1,51 @@
 { stdenv
 , lib
-, makeWrapper
+, writeText
+, writeShellScript
 , toothpickRunner
 , jre
 }:
+let
+  javaFacade = writeShellScript "toothpick-runner" ''
+    set -euo pipefail
+    export PATH="${lib.makeBinPath [ jre ]}:$PATH"
+
+    DIR_PATH="$(dirname "$(realpath "$0")")"
+    TOOTHPICK_REPORT=''${TOOTHPICK_REPORT:-""}
+    RUN_ARGS=("-main")
+
+    CONFIG_ENTRY_FILE="$PWD/.toothpick.conf"
+
+    if test -f "''${CONFIG_ENTRY_FILE}"; then
+      RUN_ARGS+=("-Dconfig.entry=''${CONFIG_ENTRY_FILE}")
+    fi
+
+    if [[ "''${TOOTHPICK_REPORT}" != "" ]]; then
+      RUN_ARGS+=("dev.toothpick.app.TpIntellijReporterApp" "-Dapp.run-id=''${TOOTHPICK_REPORT}")
+    else
+      RUN_ARGS+=("dev.toothpick.app.TpIntellijRunnerApp" -- "$@")
+    fi
+
+    "${toothpickRunner}/bin/toothpick-runner" "''${RUN_ARGS[@]}"
+  '';
+in
 stdenv.mkDerivation
 {
   pname = "toothpick-runner-jre";
   version = import ./version.nix;
   src = ../scripts/runner;
-  dontStrip = true;
-  dontPatch = true;
-  dontFixup = true;
-  nativeBuildInputs = [ makeWrapper ];
-  installPhase = ''
-    mkdir -p $out/bin
 
-    cp ./runner.sh $out/bin/
-    makeWrapper ${toothpickRunner}/bin/toothpick-runner $out/bin/toothpick-runner \
-      --prefix PATH : "${lib.makeBinPath [ jre ]}"
+  # phases = [ "unpackPhase" "installPhase" ];
+
+  setupHook = writeText "setupHook.sh" ''
+    export TOOTHPICK_RUNNER_HOME=@out@/jre
+  '';
+
+  installPhase = ''
+    mkdir -p $out/jre/bin
     
-    find "${jre}" -mindepth 1 -maxdepth 1 -not -path "*/bin" -print0 | xargs -0 -I{} ln -s "{}" "$out/"
-    find "${jre}/bin" -mindepth 1 -maxdepth 1 -not -path "*/java" -print0 | xargs -0 -I{} ln -s "{}" "$out/bin/"
-    ln -s "$out/bin/runner.sh" "$out/bin/java"
+    find "${jre}/" -mindepth 1 -maxdepth 1 -not -path "*/bin" -print0 | xargs -0 -I{} ln -s "{}" "$out/jre/"
+    find "${jre}/bin/" -mindepth 1 -maxdepth 1 -not -path "*/java" -print0 | xargs -0 -I{} ln -s "{}" "$out/jre/bin/"
+    ln -s "${javaFacade}" "$out/jre/bin/java"
   '';
 }
