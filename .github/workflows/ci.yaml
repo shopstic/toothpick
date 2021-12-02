@@ -9,7 +9,7 @@ defaults:
 jobs:
   build-runner:
     name: Build runner
-    runs-on: ubuntu-20.04
+    runs-on: [self-hosted, nix]
     strategy:
       matrix:
         arch:
@@ -25,31 +25,20 @@ jobs:
       #     gitCryptGpgKey: ${{ secrets.GIT_CRYPT_GPG_KEY }}
       #   timeout-minutes: 2
 
-      - name: Setup
-        uses: shopstic/tailscale-nix-builder/setup@1238e0a09d58f0a1a48104a1ccf2a47e825f01f8
-        timeout-minutes: 1
-        with:
-          tailscaleAuthKey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          nixBuildSshKey: ${{ secrets.NIX_BUILD_SSH_KEY }}
-          nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
-          nixCacheS3SecretAccessKey: ${{ secrets.NIX_CACHE_S3_SECRET_ACCESS_KEY }}
-
       - name: Build runner
         run: |-
           nix build -L -v --no-link '.#packages.${{ matrix.arch }}.runnerJre'
 
-      - name: Logout
-        run: sudo tailscale logout
-
       - name: Cache runner
-        uses: shopstic/tailscale-nix-builder/cache@1238e0a09d58f0a1a48104a1ccf2a47e825f01f8
-        with:
-          nixOutput: .#packages.${{ matrix.arch }}.runnerJre
-          nixCachePrivateKey: ${{ secrets.NIX_CACHE_PRIVATE_KEY }}
+        env: 
+          NIX_OUTPUT: .#packages.${{ matrix.arch }}.runnerJre
+        run: |
+          nix store sign "${NIX_OUTPUT}" -v -r -k ~/.secrets/nix-cache-private-key
+          nix copy -v "${NIX_OUTPUT}" --to s3://nixed/cache?profile=nix-cache
 
   build-images:
     name: Build images
-    runs-on: ubuntu-20.04
+    runs-on: [self-hosted, nix]
     needs: build-runner
     strategy:
       matrix:
@@ -64,15 +53,6 @@ jobs:
       #   with:
       #     gitCryptGpgKey: ${{ secrets.GIT_CRYPT_GPG_KEY }}
       #   timeout-minutes: 2
-
-      - name: Setup
-        uses: shopstic/tailscale-nix-builder/setup@1238e0a09d58f0a1a48104a1ccf2a47e825f01f8
-        timeout-minutes: 1
-        with:
-          tailscaleAuthKey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          nixBuildSshKey: ${{ secrets.NIX_BUILD_SSH_KEY }}
-          nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
-          nixCacheS3SecretAccessKey: ${{ secrets.NIX_CACHE_S3_SECRET_ACCESS_KEY }}
 
       - name: Login to Docker Hub
         uses: docker/login-action@v1  
@@ -99,12 +79,9 @@ jobs:
           nix develop '.#skopeoShell' -v -c \
             skopeo --insecure-policy copy docker-archive:./result docker://docker.io/shopstic/toothpick-server:${{ matrix.arch }}-"${TAG}"
 
-      - name: Logout
-        run: sudo tailscale logout
-
   push-manifest:
     name: Push multi-arch manifest
-    runs-on: ubuntu-20.04
+    runs-on: [self-hosted, nix]
     needs: build-images
     steps:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
@@ -136,17 +113,10 @@ jobs:
   
   build-helm-chart:
     name: Build Helm chart
-    runs-on: ubuntu-20.04
+    runs-on: [self-hosted, nix]
     needs: build-images
     steps:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
-
-      - name: Setup
-        uses: shopstic/tailscale-nix-builder/setup@1238e0a09d58f0a1a48104a1ccf2a47e825f01f8
-        timeout-minutes: 1
-        with:
-          nixCacheS3AccessKeyId: ${{ secrets.NIX_CACHE_S3_ACCESS_KEY_ID }}
-          nixCacheS3SecretAccessKey: ${{ secrets.NIX_CACHE_S3_SECRET_ACCESS_KEY }}
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v1
