@@ -50,7 +50,7 @@
             buildInputs = toothpick.buildInputs ++ builtins.attrValues {
               inherit (pkgs)
                 skopeo
-                yq
+                yq-go
                 awscli2
                 kubernetes-helm
                 ;
