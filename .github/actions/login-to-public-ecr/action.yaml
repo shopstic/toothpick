@@ -1,0 +1,15 @@
+name: Login to public ECR
+inputs:
+  imageRepo:
+    description: "Root image repository"
+    required: true
+description: ""
+runs:
+  using: composite
+  steps:
+    - name: Login
+      shell: nix develop -v -c bash {0}
+      env: 
+        IMAGE_REPO: ${{ inputs.imageRepo }}
+      run: |-
+        aws ecr-public get-login-password | docker login --username AWS --password-stdin "${IMAGE_REPO}"

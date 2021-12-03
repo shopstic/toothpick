@@ -34,12 +34,14 @@ jobs:
           NIX_OUTPUT: .#packages.${{ matrix.arch }}.runnerJre
         run: |
           nix store sign "${NIX_OUTPUT}" -v -r -k ~/.secrets/nix-cache-private-key
-          nix copy -v "${NIX_OUTPUT}" --to s3://nixed/cache?profile=nix-cache
+          nix copy -v "${NIX_OUTPUT}" --to s3://nixed/cache
 
   build-images:
     name: Build images
     runs-on: [self-hosted, nix]
     needs: build-runner
+    env:
+      IMAGE_REPOSITORY: public.ecr.aws/g1b1f7a7
     strategy:
       matrix:
         arch:
@@ -54,17 +56,10 @@ jobs:
       #     gitCryptGpgKey: ${{ secrets.GIT_CRYPT_GPG_KEY }}
       #   timeout-minutes: 2
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1  
+      - name: Login to Amazon ECR
+        uses: ./.github/actions/login-to-public-ecr
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - run: chmod +r ~/.docker/config.json
-
-      - name: Derive branch and tag
-        id: meta
-        uses: ./.github/actions/derive-branch-tag
+          imageRepo: ${{ env.IMAGE_REPOSITORY }}
 
       - name: Build container images
         run: |-
@@ -72,74 +67,67 @@ jobs:
 
       - name: Push
         env:
-          GITHUB_TAG: ${{ steps.meta.outputs.tag }}
           GITHUB_SHA: ${{ github.sha }}  
+          NIX_ARCH: ${{ matrix.arch }}
+        shell: nix develop -v -c bash {0}
         run: |-
-          TAG=${GITHUB_TAG:-"${GITHUB_SHA}"}
-          nix develop '.#skopeoShell' -v -c \
-            skopeo --insecure-policy copy docker-archive:./result docker://docker.io/shopstic/toothpick-server:${{ matrix.arch }}-"${TAG}"
+          IMAGE_ARCH="amd64"
+          if [[ "${NIX_ARCH}" == "aarch64" ]]; then
+            IMAGE_ARCH="arm64"
+          fi
+
+          IMAGE_TAG="dev-${IMAGE_ARCH}-${GITHUB_SHA}"
+        
+          skopeo --insecure-policy copy \
+            docker-archive:./result \
+            docker://"${IMAGE_REPOSITORY}"/toothpick-server:"${IMAGE_TAG}"
 
   push-manifest:
     name: Push multi-arch manifest
     runs-on: [self-hosted, nix]
     needs: build-images
+    env:
+      IMAGE_REPOSITORY: public.ecr.aws/g1b1f7a7
     steps:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
       
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
+      - name: Login to Amazon ECR
+        uses: ./.github/actions/login-to-public-ecr
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - run: chmod +r ~/.docker/config.json
-
-      - name: Derive branch and tag
-        id: meta
-        uses: ./.github/actions/derive-branch-tag
+          imageRepo: ${{ env.IMAGE_REPOSITORY }}
 
       - name: Push
+        shell: nix develop -v -c bash {0}
         env:
-          GITHUB_TAG: ${{ steps.meta.outputs.tag }}
-          GITHUB_SHA: ${{ github.sha }}  
+          GITHUB_SHA: ${{ github.sha }}
         run: |-
-          TAG=${GITHUB_TAG:-"${GITHUB_SHA}"}
-          docker manifest create \
-            shopstic/toothpick-server:"${TAG}" \
-            --amend shopstic/toothpick-server:x86_64-"${TAG}" \
-            --amend shopstic/toothpick-server:aarch64-"${TAG}"
-
-          docker manifest push shopstic/toothpick-server:"${TAG}"
+          manifest-tool push from-args \
+            --platforms linux/amd64,linux/arm64 \
+            --template "${IMAGE_REPOSITORY}"/toothpick-server:dev-ARCH-"${GITHUB_SHA}" \
+            --target "${IMAGE_REPOSITORY}"/toothpick-server:dev-"${GITHUB_SHA}"
   
   build-helm-chart:
     name: Build Helm chart
     runs-on: [self-hosted, nix]
     needs: build-images
+    env:
+      IMAGE_REPOSITORY: public.ecr.aws/g1b1f7a7    
     steps:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1
+      - name: Login to Amazon ECR
+        uses: ./.github/actions/login-to-public-ecr
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-
-      - run: chmod +r ~/.docker/config.json
-
-      - name: Derive branch and tag
-        id: meta
-        uses: ./.github/actions/derive-branch-tag
+          imageRepo: ${{ env.IMAGE_REPOSITORY }}
 
       - name: Build and push Helm Chart
-        # if: steps.ref_name.outputs.tag != ''
+        shell: nix develop -v -c bash {0}
         env:
-          GITHUB_TAG: ${{ steps.meta.outputs.tag }}
           GITHUB_SHA: ${{ github.sha }}
         run: |-
           export HELM_REGISTRY_CONFIG=/home/runner/.docker/config.json
 
-          CHART_VERSION=${GITHUB_TAG:-"1.0.0-${GITHUB_SHA}"}
-          APP_VERSION=${GITHUB_TAG:-"${GITHUB_SHA}"}
+          CHART_VERSION="1.0.0-${GITHUB_SHA}"
+          APP_VERSION="${GITHUB_SHA}"
 
-          nix develop '.#helmShell' -v -c ./cli.sh push_helm_chart "${CHART_VERSION}" "${APP_VERSION}" "oci://ghcr.io/shopstic/toothpick/chart"
+          ./cli.sh push_helm_chart "${CHART_VERSION}" "${APP_VERSION}" "oci://${IMAGE_REPOSITORY}/toothpick-server-chart"

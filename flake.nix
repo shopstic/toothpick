@@ -2,21 +2,10 @@
   description = "Toothpick";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/29830319abf5a925921885974faae5509312b940";
-    flakeUtils = {
-      url = "github:numtide/flake-utils";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    fdb = {
-      url = "github:shopstic/nix-fdb";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flakeUtils.follows = "flakeUtils";
-    };
-    hotPot = {
-      url = "github:shopstic/nix-hot-pot";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flakeUtils.follows = "flakeUtils";
-    };
+    hotPot.url = "github:shopstic/nix-hot-pot";
+    nixpkgs.follows = "hotPot/nixpkgs";
+    flakeUtils.follows = "hotPot/flakeUtils";
+    fdb.url = "github:shopstic/nix-fdb";
   };
 
   outputs = { self, nixpkgs, flakeUtils, fdb, hotPot }:
@@ -24,6 +13,7 @@
       (system:
         let
           pkgs = import nixpkgs { inherit system; };
+          hotPotPkgs = hotPot.packages.${system};
 
           fdbLib = pkgs.runCommandLocal "fdb-lib" { } ''
             cp -R ${fdb.defaultPackage.${system}}/lib $out
@@ -56,41 +46,24 @@
             jre = pkgs.jdk11_headless;
           };
 
-          skopeoShell = pkgs.mkShellNoCC {
-            buildInputs = builtins.attrValues {
+          devShell = pkgs.mkShellNoCC {
+            buildInputs = toothpick.buildInputs ++ builtins.attrValues {
               inherit (pkgs)
                 skopeo
-                ;
-            };
-          };
-
-          helmShell = pkgs.mkShellNoCC {
-            buildInputs = builtins.attrValues {
-              inherit (pkgs)
+                yq
+                awscli2
                 kubernetes-helm
-                yq-go
+                ;
+              inherit (hotPotPkgs)
+                manifest-tool
                 ;
             };
-          };
-
-          devShell = pkgs.mkShellNoCC {
-            buildInputs = toothpick.buildInputs ++ skopeoShell.buildInputs ++ helmShell.buildInputs;
           };
         in
         {
           inherit devShell;
           defaultPackage = toothpick;
-          devShells = {
-            inherit helmShell skopeoShell;
-          };
           packages = {
-            sbtDebug = pkgs.dockerTools.buildImage {
-              name = "sbt-debug";
-              contents = [
-                sbt
-                jdk
-              ];
-            };
             deps = toothpickDeps;
             hello = pkgs.hello;
             devEnv = devShell.inputDerivation;
