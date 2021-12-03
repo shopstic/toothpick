@@ -7,15 +7,11 @@
 , dumb-init
 }:
 let
-  baseImageDigest =
-    if stdenv.isx86_64 then
-      "sha256:5352ab50afd260ab429b2debf82b3a5ba52b0785acff983f0f847798463871ab" else
-      "sha256:f51998b423ae2adaa582ecd4d43d9e46bdc85d39683e8b9a6eea7ccba6815696";
-
   baseImage = buildahBuild
     {
+      name = "server-base-image";
       context = writeTextDir "Dockerfile" ''
-        FROM docker.io/library/openjdk@${baseImageDigest}
+        FROM docker.io/library/openjdk:11.0.13-slim-bullseye@sha256:29eca747201257182d746a59ebc96751436ccec372274c0cf22229b44ea0073c
 
         RUN \
           sed -i 's/#networkaddress.cache.ttl=-1/networkaddress.cache.ttl=5/g' /usr/local/openjdk-11/conf/security/java.security && \
@@ -24,8 +20,8 @@ let
       squash = false;
       outputHash =
         if stdenv.isx86_64 then
-          "sha256-4fABHGeG2i7IeSftH3UkRcR6UlQ8j+hP4QVC4HEt9Ao=" else
-          "sha256-RYD1EP830CoiD/uPrOB6WJNwyeSp4pHdgqtzULmaF5o=";
+          "sha256-TW+h2MclCJjcmpTUZ/uE6hkThzf/OpEN54gICmZIYC8=" else
+          "sha256-Ka1hIxC3rYWaX1INy7VuKomNkSO58QphSyCIJriIQts=";
     };
 in
 dockerTools.buildLayeredImage
