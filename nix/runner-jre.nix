@@ -33,9 +33,6 @@ stdenv.mkDerivation
 {
   pname = "toothpick-runner-jre";
   version = import ./version.nix;
-  src = ../scripts/runner;
-
-  # phases = [ "unpackPhase" "installPhase" ];
 
   setupHook = writeText "setupHook.sh" ''
     export TOOTHPICK_RUNNER_HOME=@out@/jre

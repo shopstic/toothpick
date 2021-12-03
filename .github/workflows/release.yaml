@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version'
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Release ${{ github.event.inputs.version }}
+    runs-on: [self-hosted, nix]
+    steps:
+      - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
+
+      - name: Login to Amazon ECR
+        uses: ./.github/actions/login-to-public-ecr
+        with:
+          imageRepo: ${{ env.IMAGE_REPOSITORY }}
+
+      - name: Push image manifest
+        shell: nix develop -v -c bash {0}
+        env:
+          RELEASE_VERSION: ${{ github.event.inputs.version }}
+        run: |-
+          GITHUB_SHA=$(git rev-parse HEAD)
+          manifest-tool push from-args \
+            --platforms linux/amd64,linux/arm64 \
+            --template "${IMAGE_REPOSITORY}"/toothpick-server:dev-ARCH-"${GITHUB_SHA}" \
+            --target "${IMAGE_REPOSITORY}"/toothpick-server:"${RELEASE_VERSION}"
+
+      - name: Build and push Helm Chart
+        shell: nix develop -v -c bash {0}
+        env:
+          RELEASE_VERSION: ${{ github.event.inputs.version }}
+        run: |-
+          export HELM_REGISTRY_CONFIG=/home/runner/.docker/config.json
+          ./cli.sh push_helm_chart "${RELEASE_VERSION}" "${RELEASE_VERSION}" "oci://${IMAGE_REPOSITORY}/charts"
+
+      - name: Create git tag
+        env:
+          RELEASE_VERSION: ${{ github.event.inputs.version }}
+        run: |-
+          git config --global user.email "ci-runner@shopstic.com"
+          git config --global user.name "CI Runner"
+          git tag "${RELEASE_VERSION}"
+          git push origin --tags
