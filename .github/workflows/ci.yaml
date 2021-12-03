@@ -130,4 +130,4 @@ jobs:
           CHART_VERSION="1.0.0-${GITHUB_SHA}"
           APP_VERSION="${GITHUB_SHA}"
 
-          ./cli.sh push_helm_chart "${CHART_VERSION}" "${APP_VERSION}" "oci://${IMAGE_REPOSITORY}/toothpick-server-chart"
+          ./cli.sh push_helm_chart "${CHART_VERSION}" "${APP_VERSION}" "oci://${IMAGE_REPOSITORY}/charts"
