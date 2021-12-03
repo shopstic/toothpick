@@ -1,6 +1,6 @@
 # Toothpick
 
-[![CI](https://github.com/shopstic/toothpick/actions/workflows/ci.yaml/badge.svg)](https://github.com/shopstic/toothpick/actions) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/shopstic/toothpick/blob/main/LICENSE) [![Docker](https://img.shields.io/docker/v/shopstic/toothpick-server?arch=amd64&color=%23ab47bc&label=Docker%20Image&sort=semver)](https://hub.docker.com/repository/docker/shopstic/toothpick-server/tags?page=1&ordering=last_updated&name=1.)
+[![CI](https://github.com/shopstic/toothpick/actions/workflows/dev.yaml/badge.svg)](https://github.com/shopstic/toothpick/actions) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/shopstic/toothpick/blob/main/LICENSE)
 
 A Kubernetes-native, massively parallelized, distributed integration test runner for Scala. Currently, it supports [ScalaTest](https://www.scalatest.org/), with [ZIO Test](https://zio.dev/docs/usecases/usecases_testing) support coming soon.
 
