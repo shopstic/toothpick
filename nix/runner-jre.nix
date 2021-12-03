@@ -1,6 +1,5 @@
-{ stdenv
-, lib
-, writeText
+{ lib
+, runCommandNoCC
 , writeShellScript
 , toothpickRunner
 , jre
@@ -28,21 +27,12 @@ let
 
     "${toothpickRunner}/bin/toothpick-runner" "''${RUN_ARGS[@]}"
   '';
-in
-stdenv.mkDerivation
-{
-  pname = "toothpick-runner-jre";
   version = import ./version.nix;
+in
+runCommandNoCC "toothpick-runner-jre-${version}" { } ''
+  mkdir -p $out/jre/bin
 
-  setupHook = writeText "setupHook.sh" ''
-    export TOOTHPICK_RUNNER_HOME=@out@/jre
-  '';
-
-  installPhase = ''
-    mkdir -p $out/jre/bin
-    
-    find "${jre}/" -mindepth 1 -maxdepth 1 -not -path "*/bin" -print0 | xargs -0 -I{} ln -s "{}" "$out/jre/"
-    find "${jre}/bin/" -mindepth 1 -maxdepth 1 -not -path "*/java" -print0 | xargs -0 -I{} ln -s "{}" "$out/jre/bin/"
-    ln -s "${javaFacade}" "$out/jre/bin/java"
-  '';
-}
+  find "${jre}/" -mindepth 1 -maxdepth 1 -not -path "*/bin" -print0 | xargs -0 -I{} ln -s "{}" "$out/jre/"
+  find "${jre}/bin/" -mindepth 1 -maxdepth 1 -not -path "*/java" -print0 | xargs -0 -I{} ln -s "{}" "$out/jre/bin/"
+  ln -s "${javaFacade}" "$out/jre/bin/java"
+''
