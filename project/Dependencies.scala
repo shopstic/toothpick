@@ -1,11 +1,11 @@
 import sbt._
 
 object Dependencies {
-  val CHOPSTICKS_VERSION = "3.6.0"
+  val CHOPSTICKS_VERSION = "3.7.2"
   val ZIO_VERSION = "1.0.12"
 
   lazy val akkaGrpcRuntimeDeps = Seq(
-    "com.lightbend.akka.grpc" %% "akka-grpc-runtime" % "2.0.0"
+    "com.lightbend.akka.grpc" %% "akka-grpc-runtime" % "2.1.1"
   )
 
   lazy val betterFilesDeps = Seq(
@@ -41,7 +41,7 @@ object Dependencies {
   )
 
   lazy val grpcNettyDeps = Seq(
-    "io.grpc" % "grpc-netty" % "1.38.0"
+    "io.grpc" % "grpc-netty" % "1.42.1"
   )
 
   lazy val jibDeps = Seq(
@@ -49,12 +49,12 @@ object Dependencies {
   )
 
   lazy val jsoniterDeps = Seq(
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.11.1",
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.11.1" % "provided"
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.12.0",
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.12.0" % "provided"
   )
 
   lazy val pureconfigEnumeratumDeps = Seq(
-    "com.github.pureconfig" %% "pureconfig-enumeratum" % "0.17.0"
+    "com.github.pureconfig" %% "pureconfig-enumeratum" % "0.17.1"
   )
 
   lazy val quicklensDeps = Seq(
@@ -62,7 +62,7 @@ object Dependencies {
   )
 
   lazy val overrideDeps = Seq(
-    "com.typesafe.akka" %% "akka-discovery" % "2.6.16"
+    "com.typesafe.akka" %% "akka-discovery" % "2.6.17"
   )
 
   lazy val pprintDeps = Seq(
@@ -91,7 +91,7 @@ object Dependencies {
   )
 
   lazy val zioDeps = Seq(
-    "io.github.kitlangton" %% "zio-magic" % "0.3.10",
+    "io.github.kitlangton" %% "zio-magic" % "0.3.11",
     "dev.zio" %% "zio" % ZIO_VERSION,
     "dev.zio" %% "zio-test" % ZIO_VERSION % "test",
     "dev.zio" %% "zio-test-sbt" % ZIO_VERSION % "test"
