@@ -67,11 +67,17 @@ lazy val runner = Build
     Compile / mainClass := Some("dev.toothpick.app.TpIntellijRunnerApp"),
     Compile / discoveredMainClasses := Seq.empty,
     libraryDependencies ++= scalaXmlDeps ++ jibDeps ++ betterFilesDeps ++ cytodynamicsNucleusDeps ++
-      quicklensDeps ++ fastparseDeps ++ pprintDeps ++ zioDeps ++ jsoniterDeps.map(m =>
-        m.withConfigurations(m.configurations.map(_ + ",test").orElse(Some("test")))
-      ),
+      quicklensDeps ++ fastparseDeps ++ pprintDeps ++ zioDeps ++ pureconfigEnumeratumDeps ++
+      jsoniterDeps.map(m => m.withConfigurations(m.configurations.map(_ + ",test").orElse(Some("test")))),
     publish / skip := true,
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+  )
+
+lazy val examples = Build
+  .defineProject("examples")
+  .settings(
+    publish / skip := true,
+    libraryDependencies ++= scalatestDeps.map(_ % "test")
   )
 
 lazy val exp = Build

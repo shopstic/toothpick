@@ -121,7 +121,13 @@ object TpReporter {
                   } yield Chunk.empty
 
                 case TpImagePullingStarted(workerNode, image) =>
-                  zlogger.info(s"$workerNode is pulling $image") *> noop
+                  zlogger.info(s"$workerNode started pulling $image") *> noop
+
+                case TpImagePullingProgress(workerNode, _, log) =>
+                  zlogger.info(s"$workerNode $log") *> noop
+
+                case TpImagePullingResult(workerNode, image, result) =>
+                  zlogger.info(s"$workerNode finished pulling $image $result") *> noop
 
                 case MatchesTeamCityServiceMessageEvent(content) =>
                   TpIntellijServiceMessageParser.parse(content) match {
@@ -329,6 +335,12 @@ object TpReporter {
 
             case TpImagePullingStarted(workerNode, image) =>
               zlogger.info(s"$workerNode is pulling $image") *> noop
+
+            case TpImagePullingProgress(workerNode, _, log) =>
+              zlogger.info(s"$workerNode $log") *> noop
+
+            case TpImagePullingResult(workerNode, image, result) =>
+              zlogger.info(s"$workerNode finished pulling $image $result") *> noop
 
             case MatchesTeamCityServiceMessageEvent(content) =>
               TpIntellijServiceMessageParser.parse(content) match {

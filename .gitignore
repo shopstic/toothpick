@@ -3,8 +3,8 @@
 target
 /.zsh_history
 /.direnv
-/.idea
 /.vscode
 /test-console.sh
 /.metals
 /result
+/.dev-sdks

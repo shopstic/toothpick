@@ -18,12 +18,29 @@
           fdbLib = pkgs.runCommandLocal "fdb-lib" { } ''
             cp -R ${fdb.defaultPackage.${system}}/lib $out
           '';
+          fdbLibSystem = if system == "aarch64-darwin" then "x86_64-darwin" else system;
           toothpickSystem = if system == "aarch64-linux" then "x86_64-linux" else system;
           toothpickPkgs = import nixpkgs { system = toothpickSystem; };
 
-          sbt = toothpickPkgs.sbt.overrideAttrs (_: {
-            postPatch = "";
-          });
+          jdkArgs = [
+            "--set DYLD_LIBRARY_PATH ${fdb.defaultPackage.${fdbLibSystem}}/lib"
+            "--set LD_LIBRARY_PATH ${fdb.defaultPackage.${fdbLibSystem}}/lib"
+          ];
+
+          runJdk = pkgs.callPackage hotPot.lib.wrapJdk {
+            jdk = (import nixpkgs { system = fdbLibSystem; }).jdk11;
+            args = pkgs.lib.concatStringsSep " " jdkArgs;
+          };
+          compileJdk = pkgs.callPackage hotPot.lib.wrapJdk {
+            jdk = pkgs.jdk11;
+            args = pkgs.lib.concatStringsSep " " (jdkArgs ++ [ ''--run "if [[ -f ./.env ]]; then source ./.env; fi"'' ]);
+          };
+          sbt = pkgs.sbt.override {
+            jre = {
+              home = compileJdk;
+            };
+          };
+
           jdk = toothpickPkgs.jdk11_headless;
 
           toothpickDeps = toothpickPkgs.callPackage ./nix/deps.nix {
@@ -42,11 +59,42 @@
             };
 
           toothpickRunnerJre = pkgs.callPackage ./nix/runner-jre.nix {
-            toothpickRunner = toothpick;
+            toothpickRunner = "${toothpick}/bin/toothpick-runner";
             jre = pkgs.jdk11_headless;
           };
 
+          toothpickRunnerJreDev = pkgs.callPackage ./nix/runner-jre.nix {
+            jre = pkgs.jdk11_headless;
+          };
+
+          jdkPrefix = "toothpick-";
+          updateIntellij = pkgs.writeShellScript "update-intellij" ''
+            set -euo pipefail
+
+            THIS_PATH=$(realpath .)
+            SDK_NAMES=(compile run runner-dev)
+
+            for SDK_NAME in "''${SDK_NAMES[@]}"
+            do
+              find ~/Library/Application\ Support/JetBrains/ -mindepth 1 -maxdepth 1 -name "IntelliJIdea*" -type d | \
+                xargs -I%%%% bash -c "echo \"Adding ${jdkPrefix}''${SDK_NAME} to %%%%/options/jdk.table.xml\" && ${hotPotPkgs.intellij-helper}/bin/intellij-helper \
+                update-jdk-table-xml \
+                --name ${jdkPrefix}''${SDK_NAME} \
+                --jdkPath \"''${THIS_PATH}\"/.dev-sdks/\"''${SDK_NAME}\"-jdk \
+                --jdkTableXmlPath \"%%%%/options/jdk.table.xml\" \
+                --inPlace=true"
+            done
+          '';
+          devSdks = pkgs.linkFarm "dev-sdks" [
+            { name = "compile-jdk"; path = compileJdk; }
+            { name = "run-jdk"; path = runJdk; }
+            { name = "runner-dev-jdk"; path = toothpickRunnerJreDev; }
+            { name = "update-intellij"; path = updateIntellij; }
+          ];
           devShell = pkgs.mkShellNoCC {
+            shellHook = ''
+              ln -Tfs ${devSdks} ./.dev-sdks
+            '';
             buildInputs = toothpick.buildInputs ++ builtins.attrValues {
               inherit (pkgs)
                 skopeo
@@ -65,7 +113,6 @@
           defaultPackage = toothpick;
           packages = {
             deps = toothpickDeps;
-            hello = pkgs.hello;
             devEnv = devShell.inputDerivation;
             server = toothpick.server;
             dockerServer = toothpick.dockerServer;

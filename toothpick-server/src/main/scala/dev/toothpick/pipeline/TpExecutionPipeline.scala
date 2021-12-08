@@ -1,13 +1,14 @@
 package dev.toothpick.pipeline
 
 import akka.stream.scaladsl.Source
+import akka.util.Timeout
 import com.apple.foundationdb.tuple.Versionstamp
 import dev.chopsticks.dstream.DstreamWorker
 import dev.chopsticks.dstream.DstreamWorker.{DstreamWorkerConfig, DstreamWorkerRetryConfig}
 import dev.chopsticks.fp.ZRunnable
 import dev.chopsticks.fp.akka_env.AkkaEnv
 import dev.chopsticks.fp.iz_logging.IzLogging
-import dev.chopsticks.fp.zio_ext.ZIOExtensions
+import dev.chopsticks.fp.zio_ext.{MeasuredLogging, ZIOExtensions}
 import dev.chopsticks.stream.ZAkkaScope
 import dev.toothpick.proto.api._
 import dev.toothpick.proto.dstream._
@@ -20,7 +21,8 @@ import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.process.{Command, CommandError}
 import zio.stm.{STM, TMap, TPromise, TQueue}
-import zio.{ExitCode, RIO, Schedule, Task, URIO, URLayer, ZIO}
+import zio.stream.ZStream
+import zio.{RIO, Schedule, Task, URIO, URLayer, ZIO}
 
 import java.time.{Instant, OffsetDateTime}
 import scala.concurrent.duration._
@@ -32,6 +34,7 @@ object TpExecutionPipeline {
   final case class TestExecutionConfig(
     worker: DstreamWorkerConfig,
     retry: DstreamWorkerRetryConfig,
+    imagePullIdleTimeout: Timeout,
     imagePullCacheTtl: FiniteDuration,
     dockerPath: NonEmptyString,
     dockerRunArgs: Vector[NonEmptyString]
@@ -106,27 +109,33 @@ object TpExecutionPipeline {
 
   sealed abstract class ImagePullFailure(msg: String) extends RuntimeException(msg) with NoStackTrace
   final case class ImagePullCommandError(error: CommandError) extends ImagePullFailure(msg = error.toString)
+  final case class ImagePullWrappedException(exception: Throwable) extends ImagePullFailure(msg = exception.getMessage)
+  final case object ImagePullImageIdNotFound extends ImagePullFailure(msg = "Image was pulled but no image ID found")
   final case class ImagePullFailureWithExitCode(exitCode: Int, stderr: String)
       extends ImagePullFailure(s"exitCode=$exitCode stderr=$stderr")
 
-  private def pullImage(dockerPath: NonEmptyString, image: String): ZIO[Blocking, ImagePullFailure, String] = {
-    val task = for {
-      process <- Command(dockerPath, "pull", "-q", image).run
-      ret <- process.stdout.string zipPar process.stderr.string zipPar process.exitCode
-    } yield ret
-
-    task
-      .catchAll { error =>
-        ZIO.fail(ImagePullCommandError(error))
-      }
-      .flatMap { case ((stdout, stderr), exitCode) =>
-        exitCode match {
-          case ExitCode(0) =>
-            val imageId = stdout.trim
-            ZIO.succeed(imageId)
-          case ExitCode(code) =>
-            ZIO.fail(ImagePullFailureWithExitCode(code, stderr))
-        }
+  private def pullImage(
+    dockerPath: NonEmptyString,
+    image: String
+  ): ZStream[Blocking with Clock, ImagePullFailure, String] = {
+    ZStream
+      .fromEffect(Command(dockerPath, "pull", image).run)
+      .mapError(commandError => ImagePullCommandError(commandError))
+      .flatMap { process =>
+        process.stdout.linesStream
+          .mapError(commandError => ImagePullCommandError(commandError))
+          .concat(
+            ZStream
+              .fromEffect(
+                process.stderr.string.zip(process.exitCode)
+                  .mapError(commandError => ImagePullCommandError(commandError))
+                  .flatMap { case (stderr, exitCode) =>
+                    ZIO
+                      .fail(ImagePullFailureWithExitCode(exitCode.code, stderr))
+                      .when(exitCode.code != 0)
+                  }
+              ) *> ZStream.empty
+          )
       }
   }
 
@@ -150,7 +159,12 @@ object TpExecutionPipeline {
         .fork
       nodeName = sys.env.get("NODE_NAME").orElse(sys.env.get("HOSTNAME")).getOrElse("unknown")
       _ <- {
-        def pullAssignmentImage[R](image: String, onStarted: RIO[R, Unit]) = {
+        def pullAssignmentImage[R](
+          image: String,
+          onStarted: RIO[R, Unit],
+          onProgress: String => RIO[R, Unit],
+          onCompleted: TpImagePullingResult.Result => RIO[R, Unit]
+        ) = {
           for {
             pullState <- STM.atomically {
               for {
@@ -167,10 +181,26 @@ object TpExecutionPipeline {
               } yield ret
             }
             (pulledPromise, hasBeenPulled) = pullState
-            _ <- (onStarted *> pullImage(config.dockerPath, image)
+
+            _ <- (onStarted.mapError(ImagePullWrappedException) *> pullImage(config.dockerPath, image)
+              .timeout(config.imagePullIdleTimeout.duration.toJava)
+              .tap(line => onProgress(line).mapError(ImagePullWrappedException))
+              .runLast
+              .flatMap {
+                case Some(imageId) => ZIO.succeed(imageId)
+                case None => ZIO.fail(ImagePullImageIdNotFound)
+              }
               .foldM(
-                failure => STM.atomically(pulledPromise.fail(failure) *> tmap.delete(image)),
-                imageId => STM.atomically(pulledPromise.succeed(imageId) *> ttlQueue.offer(image -> Instant.now))
+                failure => {
+                  onCompleted(
+                    TpImagePullingResult.Result.Failure(TpImagePullingFailure(failure.toString))
+                  ) *> STM.atomically(pulledPromise.fail(failure) *> tmap.delete(image))
+                },
+                imageId => {
+                  onCompleted(TpImagePullingResult.Result.Success(TpImagePullingSuccess(imageId))) *> STM.atomically(
+                    pulledPromise.succeed(imageId) *> ttlQueue.offer(image -> Instant.now)
+                  )
+                }
               )
               .logResult(s"Pull $image", _.toString))
               .when(!hasBeenPulled)
@@ -181,12 +211,13 @@ object TpExecutionPipeline {
         def runAssignment(runTestId: TpRunTestId, args: Seq[String]) = {
           for {
             state <- TpState.get
-            runtime <- ZIO.runtime[Blocking]
+            runtime <- ZIO.runtime[Blocking with MeasuredLogging]
             dispatcher <- AkkaEnv.dispatcher
             logger <- IzLogging.logger
+//            _ <- zLogger.info(s"Running ${config.dockerPath} $args")
             process <- Command(config.dockerPath, args: _*).run
             scope <- ZAkkaScope.make
-            logPersistenceFlow <- state.api.batchTransact { batch: Vector[TpTestOutputLine] =>
+            logPersistenceFlow = state.api.batchTransact { batch: Vector[TpTestOutputLine] =>
               batch
                 .foldLeft(state.api.transactionBuilder) { (tx, outputLine) =>
                   val lineLength = outputLine.content.length
@@ -222,7 +253,8 @@ object TpExecutionPipeline {
                 }
                 .result -> TpWorkerProgress(logLineCount = batch.size)
             }
-              .make(scope)
+            stdoutPersistenceFlow <- logPersistenceFlow.make(scope)
+            stderrPersistenceFlow <- logPersistenceFlow.make(scope)
           } yield {
             import zio.interop.reactivestreams._
 
@@ -232,11 +264,11 @@ object TpExecutionPipeline {
 
             val stdoutSource = Source.fromPublisher(runtime.unsafeRun(process.stdout.linesStream.toPublisher))
               .map(TpTestOutputLine(_, TpTestOutputLine.Pipe.STDOUT))
-              .via(logPersistenceFlow)
+              .via(stdoutPersistenceFlow)
 
             val stderrSource = Source.fromPublisher(runtime.unsafeRun(process.stderr.linesStream.toPublisher))
               .map(TpTestOutputLine(_, TpTestOutputLine.Pipe.STDERR))
-              .via(logPersistenceFlow)
+              .via(stderrPersistenceFlow)
 
             Source
               .single(TpWorkerStarted())
@@ -282,12 +314,31 @@ object TpExecutionPipeline {
                 TpTestReport(Instant.now, TpTestStarted(workerId.toString, nodeName))
               )
               source <- pullAssignmentImage(
-                assignment.image, {
+                image = assignment.image,
+                onStarted = {
                   reportsKeyspace.putTask(
                     RunEventKey(runTestId, Versionstamp.incomplete()),
                     TpTestReport(
                       Instant.now,
                       TpImagePullingStarted(workerNode = nodeName, imageRef = assignment.image)
+                    )
+                  )
+                },
+                onProgress = log => {
+                  reportsKeyspace.putTask(
+                    RunEventKey(runTestId, Versionstamp.incomplete()),
+                    TpTestReport(
+                      Instant.now,
+                      TpImagePullingProgress(workerNode = nodeName, imageRef = assignment.image, log = log)
+                    )
+                  )
+                },
+                onCompleted = result => {
+                  reportsKeyspace.putTask(
+                    RunEventKey(runTestId, Versionstamp.incomplete()),
+                    TpTestReport(
+                      Instant.now,
+                      TpImagePullingResult(workerNode = nodeName, imageRef = assignment.image, result = result)
                     )
                   )
                 }

@@ -2,14 +2,17 @@ package dev.toothpick.runner
 
 import better.files.File
 import com.google.cloud.tools.jib.api._
-import com.google.cloud.tools.jib.api.buildplan.{AbsoluteUnixPath, FileEntriesLayer}
+import com.google.cloud.tools.jib.api.buildplan.{AbsoluteUnixPath, FileEntriesLayer, Platform}
 import com.google.cloud.tools.jib.event.events.TimerEvent
 import com.google.cloud.tools.jib.registry.credentials.DockerConfigCredentialRetriever
 import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser.TpRunnerContext
+import enumeratum.EnumEntry
+import enumeratum.EnumEntry.Lowercase
 import eu.timepit.refined.types.numeric.PosInt
 import eu.timepit.refined.types.string.NonEmptyString
 import logstage.Level
+import pureconfig.ConfigReader
 import zio.{RIO, Task}
 
 import java.nio.file.Paths
@@ -20,6 +23,16 @@ object TpRunnerContainerizer {
     registry: NonEmptyString,
     dockerConfigFile: NonEmptyString
   )
+
+  sealed trait ContainerizerImageArch extends EnumEntry with Lowercase
+  object ContainerizerImageArch extends enumeratum.Enum[ContainerizerImageArch] {
+    //noinspection TypeAnnotation
+    val values = findValues
+    case object Auto extends ContainerizerImageArch
+    case object Amd64 extends ContainerizerImageArch
+    case object Arm64 extends ContainerizerImageArch
+
+  }
 
   final case class ContainerizerImageConfig(
     name: NonEmptyString,
@@ -42,12 +55,23 @@ object TpRunnerContainerizer {
   }
 
   final case class TpRunnerContainerizerConfig(
+    imageArch: ContainerizerImageArch,
     targetImage: ContainerizerImageConfig,
     baseImage: ContainerizerImageConfig,
+    entrypointPrefix: Vector[String],
     runTimeoutSeconds: PosInt,
     killAfterRunTimeoutSeconds: PosInt,
     javaOptions: List[String]
   )
+
+  object TpRunnerContainerizerConfig {
+    //noinspection TypeAnnotation
+    implicit lazy val configReader = {
+      import dev.chopsticks.util.config.PureconfigConverters._
+      import pureconfig.module.enumeratum._
+      ConfigReader[TpRunnerContainerizerConfig]
+    }
+  }
 
   //noinspection MatchToPartialFunction
   def containerize(
@@ -93,9 +117,7 @@ object TpRunnerContainerizer {
           val _ = classpathListBuilder += destinationPath
         }
 
-        val entrypoint = Vector(
-          "/usr/bin/dumb-init",
-          "--",
+        val entrypoint = containerizerConfig.entrypointPrefix ++ Vector(
           "timeout",
           "--signal=15",
           s"--kill-after=${containerizerConfig.killAfterRunTimeoutSeconds}s",
@@ -133,9 +155,25 @@ object TpRunnerContainerizer {
 
         val baseImage = containerizerConfig.baseImage.toImage(handleEvent)
         val targetImage = containerizerConfig.targetImage.toImage(handleEvent)
+        val imageArch = containerizerConfig.imageArch match {
+          case ContainerizerImageArch.Auto =>
+            sys.props.get("os.arch") match {
+              case Some(arch) if arch == "aarch64" => "arm64"
+              case _ => "amd64"
+            }
+          case arch => arch.entryName
+        }
+
+        logger.info(s"Using $imageArch")
+
+        val imagePlatforms = {
+          import scala.jdk.CollectionConverters._
+          Set(new Platform(imageArch, "linux")).asJava
+        }
 
         val containerized = Jib
           .from(baseImage)
+          .setPlatforms(imagePlatforms)
           .addFileEntriesLayer(jarsLayerBuilder.build())
           .addFileEntriesLayer(classesLayerBuilder.build())
           .addFileEntriesLayer(testClassesLayerBuilder.build())

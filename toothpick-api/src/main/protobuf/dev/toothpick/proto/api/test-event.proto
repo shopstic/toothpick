@@ -10,6 +10,8 @@ message TpTestEvent {
     TpTestAborted aborted = 5;
     TpTestException exception = 6;
     TpImagePullingStarted image_pulling_started = 7;
+    TpImagePullingProgress image_pulling_progress = 9;
+    TpImagePullingResult image_pulling_result = 10;
     TpTestOutputLinePart outputLinePart = 8;
   }
 }
@@ -17,6 +19,29 @@ message TpTestEvent {
 message TpImagePullingStarted {
   string workerNode = 1;
   string imageRef = 2;
+}
+
+message TpImagePullingProgress {
+  string workerNode = 1;
+  string imageRef = 2;
+  string log = 3;
+}
+
+message TpImagePullingSuccess {
+  string imageId = 1;
+}
+
+message TpImagePullingFailure {
+  string error = 1;
+}
+
+message TpImagePullingResult {
+  string workerNode = 1;
+  string imageRef = 2;
+  oneof result {
+    TpImagePullingSuccess success = 3;
+    TpImagePullingFailure failure = 4;
+  }
 }
 
 message TpTestStarted {

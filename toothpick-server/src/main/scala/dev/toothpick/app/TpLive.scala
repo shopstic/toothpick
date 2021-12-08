@@ -1,5 +1,6 @@
 package dev.toothpick.app
 
+import akka.grpc.GrpcClientSettings
 import dev.chopsticks.dstream.DstreamServerHandlerFactory.DstreamServerPartialHandler
 import dev.chopsticks.dstream._
 import dev.chopsticks.dstream.metric.DstreamMasterMetrics.DstreamMasterMetric
@@ -22,6 +23,8 @@ import dev.toothpick.proto.dstream._
 import dev.toothpick.state.TpState
 import io.prometheus.client.CollectorRegistry
 import zio.ZLayer
+
+import java.util.concurrent.TimeUnit
 
 //noinspection TypeAnnotation
 object TpLive {
@@ -48,9 +51,15 @@ object TpLive {
     }
   lazy val dstreamServerHandler = DstreamServerHandler.live[TpWorkerDistribution, TpWorkerReport]
   lazy val dstreamClient = DstreamClient
-    .live[TpWorkerDistribution, TpWorkerReport] { settings =>
+    .live[TpWorkerDistribution, TpWorkerReport] { settings: GrpcClientSettings =>
       AkkaEnv.actorSystem.map { implicit as =>
-        TpDstreamClient(settings)
+        TpDstreamClient(settings
+          .withChannelBuilderOverrides(
+            _
+              .keepAliveWithoutCalls(true)
+              .keepAliveTime(5, TimeUnit.SECONDS)
+              .keepAliveTimeout(3, TimeUnit.SECONDS)
+          ))
       }
     } { (client, workerId) =>
       client
