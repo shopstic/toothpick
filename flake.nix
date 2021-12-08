@@ -26,22 +26,20 @@
             "--set DYLD_LIBRARY_PATH ${fdb.defaultPackage.${fdbLibSystem}}/lib"
             "--set LD_LIBRARY_PATH ${fdb.defaultPackage.${fdbLibSystem}}/lib"
           ];
-
+          jdk = toothpickPkgs.jdk11_headless;
           runJdk = pkgs.callPackage hotPot.lib.wrapJdk {
             jdk = (import nixpkgs { system = fdbLibSystem; }).jdk11;
             args = pkgs.lib.concatStringsSep " " jdkArgs;
           };
           compileJdk = pkgs.callPackage hotPot.lib.wrapJdk {
-            jdk = pkgs.jdk11;
+            inherit jdk;
             args = pkgs.lib.concatStringsSep " " (jdkArgs ++ [ ''--run "if [[ -f ./.env ]]; then source ./.env; fi"'' ]);
           };
-          sbt = pkgs.sbt.override {
+          sbt = toothpickPkgs.sbt.override {
             jre = {
               home = compileJdk;
             };
           };
-
-          jdk = toothpickPkgs.jdk11_headless;
 
           toothpickDeps = toothpickPkgs.callPackage ./nix/deps.nix {
             inherit sbt jdk;
