@@ -59,7 +59,7 @@
             };
 
           toothpickRunnerJre = pkgs.callPackage ./nix/runner-jre.nix {
-            toothpickRunner = "${toothpick}/bin/toothpick-runner";
+            toothpickRunnerBin = "${toothpick}/bin/toothpick-runner";
             jre = pkgs.jdk11_headless;
           };
 
