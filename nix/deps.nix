@@ -32,7 +32,7 @@ stdenv.mkDerivation {
     export PROTOC_CACHE="$XDG_CACHE_HOME/protoc_cache";
     export COURSIER_CACHE="$XDG_CACHE_HOME/coursier";
 
-    export SBT_OPTS="-Dsbt.global.base=$XDG_CACHE_HOME/sbt -Dsbt.ivy.home=$XDG_CACHE_HOME/ivy -XX:-UseContainerSupport"
+    export SBT_OPTS="-Dsbt.global.base=$XDG_CACHE_HOME/sbt -Dsbt.ivy.home=$XDG_CACHE_HOME/ivy"
     echo "SBT_OPTS=$SBT_OPTS"
 
     mkdir -p ./toothpick-api/src/main/scala
