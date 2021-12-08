@@ -39,7 +39,7 @@ stdenv.mkDerivation {
     export PROTOC_CACHE="$XDG_CACHE_HOME/protoc_cache";
     export COURSIER_CACHE="$XDG_CACHE_HOME/coursier";
 
-    export SBT_OPTS="-Dsbt.global.base=$XDG_CACHE_HOME/sbt -Dsbt.ivy.home=$XDG_CACHE_HOME/ivy -Xmx4g -Xss6m"
+    export SBT_OPTS="-Dsbt.global.base=$XDG_CACHE_HOME/sbt -Dsbt.ivy.home=$XDG_CACHE_HOME/ivy -Xmx4g -Xss6m -XX:-UseContainerSupport"
     echo "SBT_OPTS=$SBT_OPTS"
 
     sbt --client cq < <(echo q)
