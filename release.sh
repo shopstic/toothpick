@@ -20,7 +20,7 @@ get_release_version() {
       SHORTENED_COMMIT_SHA=$(echo "${GIT_SHA}" | cut -c 1-7) || exit $?
       GIT_COMMIT_COUNT=$(git rev-list --count HEAD) || exit $?
 
-      echo "${CURRENT_VERSION}+${GIT_COMMIT_COUNT}-${SHORTENED_COMMIT_SHA}"
+      echo "${CURRENT_VERSION}.${GIT_COMMIT_COUNT}-${SHORTENED_COMMIT_SHA}"
     else
       echo "${CURRENT_VERSION}"
     fi
@@ -31,9 +31,9 @@ get_release_version() {
 }
 
 push_helm_chart() {
-  export HELM_CHART_VERSION=${1:?"Helm chart version is required"}
-  export HELM_APP_VERSION=${2:?"Helm chart app version is required"}
-  export HELM_CHART_REF=${3:?"Helm chart ref is required"}
+  local HELM_CHART_VERSION=${1:?"Helm chart version is required"}
+  local HELM_APP_VERSION=${2:?"Helm chart app version is required"}
+  local HELM_CHART_REF=${3:?"Helm chart ref is required"}
   export HELM_EXPERIMENTAL_OCI=1
 
   local OUT
