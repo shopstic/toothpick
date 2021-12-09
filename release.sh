@@ -20,7 +20,7 @@ get_release_version() {
       SHORTENED_COMMIT_SHA=$(echo "${GIT_SHA}" | cut -c 1-7) || exit $?
       GIT_COMMIT_COUNT=$(git rev-list --count HEAD) || exit $?
 
-      echo "${CURRENT_VERSION}.${GIT_COMMIT_COUNT}-${SHORTENED_COMMIT_SHA}"
+      echo "${CURRENT_VERSION}-b${GIT_COMMIT_COUNT}-${SHORTENED_COMMIT_SHA}"
     else
       echo "${CURRENT_VERSION}"
     fi
