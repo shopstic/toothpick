@@ -32,6 +32,6 @@ dockerTools.buildLayeredImage
     Env = [
       "LD_LIBRARY_PATH=${fdbLib}"
     ];
-    Cmd = [ "${dumb-init}/bin/dumb-init" "--" "${toothpickServer}/bin/toothpick-server" ];
+    Entrypoint = [ "${dumb-init}/bin/dumb-init" "--" "${toothpickServer}/bin/toothpick-server" ];
   };
 }

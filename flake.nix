@@ -19,6 +19,7 @@
             cp -R ${fdb.defaultPackage.${system}}/lib $out
           '';
           fdbLibSystem = if system == "aarch64-darwin" then "x86_64-darwin" else system;
+          # sbtn doesn't yet support aarch64-linux
           toothpickSystem = if system == "aarch64-linux" then "x86_64-linux" else system;
           toothpickPkgs = import nixpkgs { system = toothpickSystem; };
 
@@ -26,14 +27,15 @@
             "--set DYLD_LIBRARY_PATH ${fdb.defaultPackage.${fdbLibSystem}}/lib"
             "--set LD_LIBRARY_PATH ${fdb.defaultPackage.${fdbLibSystem}}/lib"
           ];
-          jdk = toothpickPkgs.jdk11_headless;
           runJdk = pkgs.callPackage hotPot.lib.wrapJdk {
             jdk = (import nixpkgs { system = fdbLibSystem; }).jdk11;
             args = pkgs.lib.concatStringsSep " " jdkArgs;
           };
-          compileJdk = pkgs.callPackage hotPot.lib.wrapJdk {
+
+          jdk = toothpickPkgs.jdk11_headless;
+          compileJdk = toothpickPkgs.callPackage hotPot.lib.wrapJdk {
             inherit jdk;
-            args = pkgs.lib.concatStringsSep " " (jdkArgs ++ [ ''--run "if [[ -f ./.env ]]; then source ./.env; fi"'' ]);
+            args = toothpickPkgs.lib.concatStringsSep " " (jdkArgs ++ [ ''--run "if [[ -f ./.env ]]; then source ./.env; fi"'' ]);
           };
           sbt = toothpickPkgs.sbt.override {
             jre = {

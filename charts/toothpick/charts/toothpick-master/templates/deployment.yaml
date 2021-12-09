@@ -79,7 +79,8 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           args:
-            - /opt/docker/bin/tp-master-app
+            - "-main"
+            - "dev.toothpick.app.TpMasterApp"
             - "-J-server"
             - "-J-XshowSettings:vm"
             - "-J-javaagent:/mnt/prometheus-jmx-exporter-agent/jmx_prometheus_javaagent.jar={{ .Values.ports.jmxMetrics.container }}:/mnt/prometheus-jmx-exporter-config/config.yaml"

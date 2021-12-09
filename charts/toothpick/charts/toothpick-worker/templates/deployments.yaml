@@ -123,7 +123,8 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           args:
-            - /opt/docker/bin/tp-worker-app
+            - "-main"
+            - "dev.toothpick.app.TpWorkerApp"
             - "-J-server"
             - "-J-XshowSettings:system"
             - "-J-javaagent:/mnt/prometheus-jmx-exporter-agent/jmx_prometheus_javaagent.jar={{ $Values.ports.jmxMetrics.container }}:/mnt/prometheus-jmx-exporter-config/config.yaml"
