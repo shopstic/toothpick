@@ -3,6 +3,7 @@
 , toothpickServer
 , fdbLib
 , writeTextDir
+, writeTextFile
 , buildahBuild
 , dumb-init
 }:
@@ -23,15 +24,22 @@ let
           "sha256-TW+h2MclCJjcmpTUZ/uE6hkThzf/OpEN54gICmZIYC8=" else
           "sha256-Ka1hIxC3rYWaX1INy7VuKomNkSO58QphSyCIJriIQts=";
     };
+  entrypoint = writeTextFile {
+    name = "entrypoint";
+    executable = true;
+    text = ''
+      #!/usr/bin/env bash
+      set -euo pipefail
+      export LD_LIBRARY_PATH="${fdbLib}:$LD_LIBRARY_PATH"
+      exec ${dumb-init}/bin/dumb-init -- ${toothpickServer}/bin/toothpick-server "$@"
+    '';
+  };
 in
 dockerTools.buildLayeredImage
 {
   name = "toothpick-server";
   fromImage = baseImage;
   config = {
-    Env = [
-      "LD_LIBRARY_PATH=${fdbLib}"
-    ];
-    Entrypoint = [ "${dumb-init}/bin/dumb-init" "--" "${toothpickServer}/bin/toothpick-server" ];
+    Entrypoint = [ entrypoint ];
   };
 }
