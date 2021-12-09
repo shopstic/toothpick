@@ -77,8 +77,6 @@ jobs:
 
           IMAGE_TAG="${RELEASE_VERSION}-${IMAGE_ARCH}"
         
-          docker load <./result
-          docker tag 
           skopeo --insecure-policy copy \
             docker-archive:./result \
             docker://"${IMAGE_REPOSITORY}"/toothpick-server:"${IMAGE_TAG}"
@@ -86,7 +84,7 @@ jobs:
   push-manifest:
     name: Push multi-arch manifest
     runs-on: [self-hosted, nix]
-    needs: build-images
+    needs: [build-runner, build-images]
     env:
       IMAGE_REPOSITORY: public.ecr.aws/g1b1f7a7
     steps:
@@ -101,11 +99,12 @@ jobs:
         shell: nix develop -v -c bash {0}
         env:
           GITHUB_SHA: ${{ github.sha }}
+          RELEASE_VERSION: ${{ needs.build-runner.outputs.version }}
         run: |-
           manifest-tool push from-args \
             --platforms linux/amd64,linux/arm64 \
-            --template "${IMAGE_REPOSITORY}"/toothpick-server:dev-ARCH-"${GITHUB_SHA}" \
-            --target "${IMAGE_REPOSITORY}"/toothpick-server:dev-"${GITHUB_SHA}"
+            --template "${IMAGE_REPOSITORY}/toothpick-server:${RELEASE_VERSION}-ARCH" \
+            --target "${IMAGE_REPOSITORY}/toothpick-server:${RELEASE_VERSION}"
   
   build-helm-chart:
     name: Build Helm chart
