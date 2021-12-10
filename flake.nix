@@ -15,17 +15,15 @@
           pkgs = import nixpkgs { inherit system; };
           hotPotPkgs = hotPot.packages.${system};
 
-          fdbLib = pkgs.runCommandLocal "fdb-lib" { } ''
-            cp -R ${fdb.defaultPackage.${system}}/lib $out
-          '';
+          fdbLib = fdb.defaultPackage.${system}.lib;
           fdbLibSystem = if system == "aarch64-darwin" then "x86_64-darwin" else system;
           # sbtn doesn't yet support aarch64-linux
           toothpickSystem = if system == "aarch64-linux" then "x86_64-linux" else system;
           toothpickPkgs = import nixpkgs { system = toothpickSystem; };
 
           jdkArgs = [
-            "--set DYLD_LIBRARY_PATH ${fdb.defaultPackage.${fdbLibSystem}}/lib"
-            "--set LD_LIBRARY_PATH ${fdb.defaultPackage.${fdbLibSystem}}/lib"
+            "--set DYLD_LIBRARY_PATH ${fdb.defaultPackage.${fdbLibSystem}.lib}"
+            "--set LD_LIBRARY_PATH ${fdb.defaultPackage.${fdbLibSystem}.lib}"
           ];
           runJdk = pkgs.callPackage hotPot.lib.wrapJdk {
             jdk = (import nixpkgs { system = fdbLibSystem; }).jdk11;
@@ -56,6 +54,7 @@
               toothpickServer = toothpick.server;
               inherit fdbLib;
               buildahBuild = pkgs.callPackage hotPot.lib.buildahBuild;
+              jre = pkgs.jre_headless;
             };
 
           toothpickRunnerJre = pkgs.callPackage ./nix/runner-jre.nix {
