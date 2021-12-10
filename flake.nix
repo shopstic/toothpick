@@ -53,7 +53,7 @@
             {
               toothpickServer = toothpick.server;
               inherit fdbLib;
-              jre = pkgs.jre_headless;
+              jre = pkgs.jdk11_headless;
             };
 
           toothpickRunnerJre = pkgs.callPackage ./nix/runner-jre.nix {
