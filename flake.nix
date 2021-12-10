@@ -53,7 +53,6 @@
             {
               toothpickServer = toothpick.server;
               inherit fdbLib;
-              buildahBuild = pkgs.callPackage hotPot.lib.buildahBuild;
               jre = pkgs.jre_headless;
             };
 
