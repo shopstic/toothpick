@@ -29,11 +29,10 @@ let
     executable = true;
     text = ''
       #!/usr/bin/env bash
-
-      exec dumb-init -- ${toothpickServer}/bin/toothpick-server \
-        -J-Djava.security.properties=${javaSecurityOverrides} \
-        -J-DFDB_LIBRARY_PATH_FDB_C=${fdbLib}/libfdb_c.so \
-        -J-DFDB_LIBRARY_PATH_FDB_JAVA=${fdbLib}/libfdb_java.so \
+      exec dumb-init -- "${toothpickServer}"/bin/toothpick-server \
+        -J-Djava.security.properties="${javaSecurityOverrides}" \
+        -J-DFDB_LIBRARY_PATH_FDB_C="${fdbLib}"/libfdb_c.so \
+        -J-DFDB_LIBRARY_PATH_FDB_JAVA="${fdbLib}"/libfdb_java.so \
         "$@"
     '';
   };
