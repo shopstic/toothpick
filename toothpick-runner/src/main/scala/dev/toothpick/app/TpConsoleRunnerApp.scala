@@ -1,29 +1,30 @@
 package dev.toothpick.app
 
 import dev.chopsticks.fp.config.{HoconConfig, TypedConfig}
-import dev.chopsticks.fp.iz_logging.{IzLogTemplates, IzLogging, IzLoggingRouter}
+import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.fp.util.ZTraceConcisePrinter
 import dev.chopsticks.fp.zio_ext.ZIOExtensions
+import dev.toothpick.app.TpConsoleRunnerStageApp.stderrLogRouterLayer
 import dev.toothpick.exporter.TpJunitXmlExporter
-import dev.toothpick.proto.api.TpTest
+import dev.toothpick.proto.api.{TpRunStage, TpTest}
 import dev.toothpick.reporter.{TpConsoleReporter, TpReporterConfig}
 import dev.toothpick.runner.TpRunner.TpRunnerConfig
 import dev.toothpick.runner.TpRunnerApiClient.TpRunnerApiClientConfig
-import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser
 import dev.toothpick.runner.{TpRunner, TpRunnerApiClient}
-import izumi.logstage.api.logger.LogSink
-import izumi.logstage.api.rendering.RenderingPolicy
-import izumi.logstage.api.routing.ConfigurableLogRouter
-import logstage.{ConsoleSink, Log}
+import logstage.Log
 import pureconfig.ConfigReader
+import scalapb.json4s.JsonFormat
+import zio.blocking.effectBlocking
 import zio.console.putStrLn
-import zio.{ExitCode, Task, UIO, ULayer, URIO, ZLayer}
+import zio.{ExitCode, Task, UIO, URIO}
+
+import java.nio.file.{Files, Paths}
 
 object TpConsoleRunnerApp extends zio.App {
   final case class AppConfig(
     apiClient: TpRunnerApiClientConfig,
-    runner: TpRunnerConfig,
-    reporter: TpReporterConfig
+    reporter: TpReporterConfig,
+    runner: TpRunnerConfig
   )
 
   object AppConfig {
@@ -34,38 +35,11 @@ object TpConsoleRunnerApp extends zio.App {
     }
   }
 
-  val stderrLogRouterLayer: ULayer[IzLoggingRouter] = ZLayer.succeed((threshold: Log.Level, sinks: Seq[LogSink]) => {
-    val modifiedSinks = sinks.map { sink: LogSink =>
-      sink match {
-        case _: ConsoleSink =>
-          val renderingPolicy = RenderingPolicy.coloringPolicy(Some(IzLogTemplates.consoleLayout))
-          new LogSink {
-            override def flush(e: Log.Entry): Unit = {
-              System.err.println(renderingPolicy.render(e))
-            }
-
-            override def sync(): Unit = {
-              System.err.flush()
-            }
-          }
-        case sink => sink
-      }
-    }
-
-    ConfigurableLogRouter(threshold, modifiedSinks)
-  })
-
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
-    val apiClientLayer = (for {
-      appConfig <- TypedConfig.get[AppConfig].toManaged_
-      client <- TpRunnerApiClient.managed(appConfig.apiClient)
-    } yield client).toLayer
-
-    val main = for {
+  private def runWithStage(stage: TpRunStage) = {
+    for {
       zlogger <- IzLogging.zioLogger
-      context <- Task(TpIntellijTestRunArgsParser.parse(args))
       appConfig <- TypedConfig.get[AppConfig]
-      runnerState <- TpRunner.run(context, appConfig.runner)
+      runnerState <- TpRunner.run(stage)
       _ <- zlogger.info(s"Run has started with ${runnerState.runId}")
       result <- TpConsoleReporter.report(runnerState, appConfig.reporter)
       (hierarchy, maybeRunReport) = result
@@ -75,19 +49,19 @@ object TpConsoleRunnerApp extends zio.App {
       _ <- {
         val message =
           s"""
-               |--------------------------------------------------------------------------------------------------------------
-               |The following ${failedCount} test${if (failedCount > 1) "s" else ""} failed:
-               |${failures.zipWithIndex.map { case (report, index) =>
+             |--------------------------------------------------------------------------------------------------------------
+             |The following ${failedCount} test${if (failedCount > 1) "s" else ""} failed:
+             |${failures.zipWithIndex.map { case (report, index) =>
             hierarchy.nodeMap(report.nodeId) match {
               case test: TpTest => s"  ${index + 1}. ${test.fullName}"
               case _ => ???
             }
           }.mkString("\n")}
-               |--------------------------------------------------------------------------------------------------------------
-               |Use this env variable to replay the report in Intellij:
-               | 
-               |TOOTHPICK_REPORT=${runnerState.runId}
-               |""".stripMargin
+             |--------------------------------------------------------------------------------------------------------------
+             |Use this env variable to replay the report in Intellij:
+             | 
+             |TOOTHPICK_REPORT=${runnerState.runId}
+             |""".stripMargin
 
         zlogger.error(s"${message -> "" -> null}")
       }.when(failedCount > 0)
@@ -105,6 +79,28 @@ object TpConsoleRunnerApp extends zio.App {
            |""".stripMargin
       )
     } yield ExitCode(0)
+  }
+
+  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
+    val main = args match {
+      case file :: Nil =>
+        for {
+          raw <- effectBlocking(Files.readString(Paths.get(file)))
+          stage <- Task(JsonFormat.fromJsonString[TpRunStage](raw))
+          ret <- runWithStage(stage)
+        } yield ret
+
+      case _ =>
+        IzLogging
+          .zioLogger
+          .flatMap(_.error(s"Path to a stage file (in JSON) is required as the only CLI argument. Got $args"))
+          .as(ExitCode(1))
+    }
+
+    val apiClientLayer = (for {
+      appConfig <- TypedConfig.get[AppConfig].toManaged_
+      client <- TpRunnerApiClient.managed(appConfig.apiClient)
+    } yield client).toLayer
 
     import zio.magic._
 

@@ -1,15 +1,20 @@
-import org.scalafmt.sbt.ScalafmtPlugin.autoImport._
+import org.scalafmt.sbt.ScalafmtPlugin.autoImport.*
 import protocbridge.Target
-import sbt.Keys._
-import sbt._
+import sbt.internal.util.complete.DefaultParsers
+import sbt.*
+import sbt.Keys.*
 import sbtprotoc.ProtocPlugin.autoImport.PB
-import wartremover.WartRemover.autoImport._
+import wartremover.WartRemover.autoImport.*
+
+import java.nio.file.Paths
 
 object Build {
   val rootName = "toothpick"
 
   lazy val cq = taskKey[Unit]("Code quality")
   lazy val fmt = taskKey[Unit]("Code formatting")
+
+  lazy val exportClasspathToFile = inputKey[Unit]("Write classpath to a file")
 
   val scalacOptions: Seq[String] = Seq(
     "-encoding",
@@ -66,7 +71,15 @@ object Build {
         wartremoverExcluded += sourceManaged.value,
         wartremoverExcluded += baseDirectory.value / "target" / "scala-2.13" / "akka-grpc",
         Compile / doc / sources := Seq.empty,
-        Compile / packageDoc / publishArtifact := false
+        Compile / packageDoc / publishArtifact := false,
+        Compile / exportClasspathToFile := {
+          val filePath = (DefaultParsers.Space ~> DefaultParsers.StringBasic).parsed
+          IO.write(Paths.get(filePath).toFile, (Compile / fullClasspath).value.map(_.data.absolutePath).mkString(":"))
+        },
+        Test / exportClasspathToFile := {
+          val filePath = (DefaultParsers.Space ~> DefaultParsers.StringBasic).parsed
+          IO.write(Paths.get(filePath).toFile, (Test / fullClasspath).value.map(_.data.absolutePath).mkString(":"))
+        }
       )
   }
 

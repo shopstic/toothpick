@@ -83,11 +83,14 @@
                 --inPlace=true"
             done
           '';
+
+          intellijScalaRunners = pkgs.callPackage ./nix/intellij-scala-runners.nix { };
           devSdks = pkgs.linkFarm "dev-sdks" [
             { name = "compile-jdk"; path = compileJdk; }
             { name = "run-jdk"; path = runJdk; }
             { name = "runner-dev-jdk"; path = toothpickRunnerJreDev; }
             { name = "update-intellij"; path = updateIntellij; }
+            { name = "intellij-scala-runners"; path = intellijScalaRunners; }
           ];
           devShell = pkgs.mkShellNoCC {
             shellHook = ''
@@ -110,6 +113,7 @@
           inherit devShell;
           defaultPackage = toothpick;
           packages = {
+            inherit intellijScalaRunners;
             deps = toothpickDeps;
             devEnv = devShell.inputDerivation;
             server = toothpick.server;

@@ -67,7 +67,7 @@ object TpRunner {
     task.mapError(_.asRuntimeException())
   }
 
-  def run(context: TpRunnerContext, config: TpRunnerConfig): RIO[TpApiClient with MeasuredLogging, TpRunnerState] = {
+  def createStage(context: TpRunnerContext, config: TpRunnerConfig): RIO[MeasuredLogging, TpRunStage] = {
     for {
       containerImageFib <- TpRunnerContainerizer.containerize(context, config.containerizer)
         .logResult("containerize", identity)
@@ -98,35 +98,59 @@ object TpRunner {
       distributions = TpRunnerUtils.createDistributions(effectiveNodeMap) { suite =>
         !config.testPerProcessFileNameRegex.matches(suite.name)
       }
+    } yield {
+      val suitePerProcessNodeIds = distributions
+        .collect { case SuitePerProcessDistribution(suite, _) => suite.id }
+        .toSet
 
-      runResponse <- TpApiClient
-        .run(TpRunRequest(
-          effectiveNodeMap,
-          runOptions = distributions
-            .map {
-              case TestPerProcessDistribution(test) =>
-                test.id -> TpTestRunOptions(
-                  image = containerImage,
-                  args = List("-s", test.className, nameFilterFlag, test.fullName)
-                )
+      val request = TpRunRequest(
+        effectiveNodeMap,
+        runOptions = distributions
+          .map {
+            case TestPerProcessDistribution(test) =>
+              test.id -> TpTestRunOptions(
+                image = containerImage,
+                args = List("-s", test.className, nameFilterFlag, test.fullName)
+              )
 
-              case SuitePerProcessDistribution(suite, tests) =>
-                val testFilterArgs =
-                  if (suite.hasFilters) tests.toList.flatMap(test => Vector(nameFilterFlag, test.fullName))
-                  else Vector.empty
+            case SuitePerProcessDistribution(suite, tests) =>
+              val testFilterArgs =
+                if (suite.hasFilters) tests.toList.flatMap(test => Vector(nameFilterFlag, test.fullName))
+                else Vector.empty
 
-                suite.id -> TpTestRunOptions(
-                  image = containerImage,
-                  args = Vector("-s", suite.name) ++ testFilterArgs
-                )
-            }
-            .toMap
-        ))
+              suite.id -> TpTestRunOptions(
+                image = containerImage,
+                args = Vector("-s", suite.name) ++ testFilterArgs
+              )
+          }
+          .toMap
+      )
+
+      TpRunStage(
+        request = request,
+        suitePerProcessNodeIds = suitePerProcessNodeIds
+      )
+    }
+  }
+
+  def run(stage: TpRunStage): RIO[TpApiClient with MeasuredLogging, TpRunnerState] = {
+    for {
+      runResponse <- TpApiClient.run(stage.request)
         .mapError(_.asRuntimeException())
         .log("Send run request to Toothpick Server")
-
     } yield {
-      TpRunnerState(runId = runResponse.runId, nodeMap = effectiveNodeMap, distributions = distributions)
+      val nodeMap = stage.request.hierarchy.collect { case (id, node: TestNode) =>
+        id -> node
+      }
+      val distributions = TpRunnerUtils.createDistributions(nodeMap) { suite =>
+        stage.suitePerProcessNodeIds.contains(suite.id)
+      }
+
+      TpRunnerState(
+        runId = runResponse.runId,
+        nodeMap = nodeMap,
+        distributions = distributions
+      )
     }
   }
 

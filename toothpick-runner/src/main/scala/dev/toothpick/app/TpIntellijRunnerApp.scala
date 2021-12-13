@@ -86,7 +86,8 @@ object TpIntellijRunnerApp extends zio.App {
       zlogger <- IzLogging.zioLogger
       context <- Task(TpIntellijTestRunArgsParser.parse(args))
       appConfig <- TypedConfig.get[AppConfig]
-      runnerState <- TpRunner.run(context, appConfig.runner)
+      runnerStage <- TpRunner.createStage(context, appConfig.runner)
+      runnerState <- TpRunner.run(runnerStage)
       _ <- zlogger.info(s"Run started with ${runnerState.runId}")
       _ <- TpIntellijReporter.report(runnerState, appConfig.reporter)
     } yield ()

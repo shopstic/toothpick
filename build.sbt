@@ -1,4 +1,7 @@
-import Dependencies._
+import Dependencies.*
+import sbt.internal.util.complete.DefaultParsers
+
+import java.nio.file.Paths
 
 //ThisBuild / githubOwner := "shopstic"
 //ThisBuild / githubRepository := "toothpick"
@@ -67,7 +70,7 @@ lazy val runner = Build
     Compile / mainClass := Some("dev.toothpick.app.TpIntellijRunnerApp"),
     Compile / discoveredMainClasses := Seq.empty,
     libraryDependencies ++= scalaXmlDeps ++ jibDeps ++ betterFilesDeps ++ cytodynamicsNucleusDeps ++
-      quicklensDeps ++ fastparseDeps ++ pprintDeps ++ zioDeps ++ pureconfigEnumeratumDeps ++
+      quicklensDeps ++ fastparseDeps ++ pprintDeps ++ zioDeps ++ pureconfigEnumeratumDeps ++ scalapbJson4sDeps ++
       jsoniterDeps.map(m => m.withConfigurations(m.configurations.map(_ + ",test").orElse(Some("test")))),
     publish / skip := true,
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
