@@ -225,12 +225,14 @@ object TpExecutionPipeline {
                   // FDB has a value length limit of 100,000 bytes.
                   // An encoded UTF-8 string can occupy at worst 2 bytes per code point.
                   // Hence we're splitting when a line is longer than 45000 code points, to be safe
-                  if (lineLength > 45000) {
-                    val partCount = math.ceil(lineLength.toDouble / 45000).toInt
+                  val lineLimit = 45000
+
+                  if (lineLength > lineLimit) {
+                    val partCount = math.ceil(lineLength.toDouble / lineLimit).toInt
 
                     outputLine
                       .content
-                      .grouped(partCount)
+                      .grouped(lineLimit)
                       .zipWithIndex
                       .foldLeft(tx) { case (t, (part, index)) =>
                         t.put(
