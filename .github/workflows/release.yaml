@@ -24,7 +24,9 @@ jobs:
       NEXT_VERSION: ${{ github.event.inputs.nextVersion }}
     steps:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
-
+        with:
+          fetch-depth: 0
+          
       - name: Login to Amazon ECR
         uses: ./.github/actions/login-to-public-ecr
         with:
