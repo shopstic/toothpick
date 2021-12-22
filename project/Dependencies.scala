@@ -2,10 +2,10 @@ import sbt._
 
 object Dependencies {
   val CHOPSTICKS_VERSION = "3.7.2"
-  val ZIO_VERSION = "1.0.12"
+  val ZIO_VERSION = "1.0.13"
 
   lazy val akkaGrpcRuntimeDeps = Seq(
-    "com.lightbend.akka.grpc" %% "akka-grpc-runtime" % "2.1.1"
+    "com.lightbend.akka.grpc" %% "akka-grpc-runtime" % "2.1.2"
   )
 
   lazy val betterFilesDeps = Seq(
@@ -41,7 +41,7 @@ object Dependencies {
   )
 
   lazy val grpcNettyDeps = Seq(
-    "io.grpc" % "grpc-netty" % "1.42.1"
+    "io.grpc" % "grpc-netty" % "1.43.1"
   )
 
   lazy val jibDeps = Seq(
@@ -66,7 +66,7 @@ object Dependencies {
   )
 
   lazy val pprintDeps = Seq(
-    "com.lihaoyi" %% "pprint" % "0.6.6"
+    "com.lihaoyi" %% "pprint" % "0.7.1"
   )
 
   lazy val scalaXmlDeps = Seq(
@@ -87,7 +87,7 @@ object Dependencies {
   )
 
   lazy val zioProcessDeps = Seq(
-    "dev.zio" %% "zio-process" % "0.5.0"
+    "dev.zio" %% "zio-process" % "0.6.0"
   )
 
   lazy val zioInteropReactivestreamsDeps = Seq(
