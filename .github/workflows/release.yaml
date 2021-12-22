@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
         with:
           fetch-depth: 0
-          
+
       - name: Login to Amazon ECR
         uses: ./.github/actions/login-to-public-ecr
         with:
@@ -45,8 +45,8 @@ jobs:
         run: |-
           manifest-tool push from-args \
             --platforms linux/amd64,linux/arm64 \
-            --template "${IMAGE_REPOSITORY}"/toothpick-server:${CURRENT_VERSION}-ARCH" \
-            --target "${IMAGE_REPOSITORY}"/toothpick-server:"${RELEASE_VERSION}"
+            --template "${IMAGE_REPOSITORY}/toothpick-server:${CURRENT_VERSION}-ARCH" \
+            --target "${IMAGE_REPOSITORY}/toothpick-server:${RELEASE_VERSION}"
 
       - name: Build and push Helm Chart
         shell: nix develop -v -c bash {0}
