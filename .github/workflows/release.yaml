@@ -12,7 +12,7 @@ on:
 
 defaults:
   run:
-    shell: bash
+    shell: nix develop -v -c bash {0}
 
 jobs:
   release:
@@ -39,7 +39,6 @@ jobs:
           echo "::set-output name=version::${CURRENT_VERSION}"
 
       - name: Push image manifest
-        shell: nix develop -v -c bash {0}
         env:
           CURRENT_VERSION: ${{ steps.determine-version.outputs.version }}
         run: |-
@@ -49,10 +48,9 @@ jobs:
             --target "${IMAGE_REPOSITORY}/toothpick-server:${RELEASE_VERSION}"
 
       - name: Build and push Helm Chart
-        shell: nix develop -v -c bash {0}
         run: |-
           export HELM_REGISTRY_CONFIG=/home/runner/.docker/config.json
-          ./cli.sh push_helm_chart "${RELEASE_VERSION}" "${RELEASE_VERSION}" "oci://${IMAGE_REPOSITORY}/charts"
+          ./release.sh push_helm_chart "${RELEASE_VERSION}" "${RELEASE_VERSION}" "oci://${IMAGE_REPOSITORY}/charts"
 
       - name: Create git tag
         run: |-
