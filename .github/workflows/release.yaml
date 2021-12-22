@@ -3,8 +3,11 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      version:
+      releaseVersion:
         description: 'Release version'
+        required: true
+      nextVersion:
+        description: 'Next version'
         required: true
 
 defaults:
@@ -13,10 +16,12 @@ defaults:
 
 jobs:
   release:
-    name: Release ${{ github.event.inputs.version }}
+    name: Release ${{ github.event.inputs.releaseVersion }}
     runs-on: [self-hosted, nix]
     env:
-      IMAGE_REPOSITORY: public.ecr.aws/g1b1f7a7
+      IMAGE_REPOSITORY: public.ecr.aws/shopstic
+      RELEASE_VERSION: ${{ github.event.inputs.releaseVersion }}
+      NEXT_VERSION: ${{ github.event.inputs.nextVersion }}
     steps:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
@@ -25,30 +30,35 @@ jobs:
         with:
           imageRepo: ${{ env.IMAGE_REPOSITORY }}
 
+      - id: determine-version
+        name: Determine current version
+        run: |-
+          CURRENT_VERSION=$(./release.sh get_release_version) || exit $?
+          echo "::set-output name=version::${CURRENT_VERSION}"
+
       - name: Push image manifest
         shell: nix develop -v -c bash {0}
         env:
-          RELEASE_VERSION: ${{ github.event.inputs.version }}
+          CURRENT_VERSION: ${{ steps.determine-version.outputs.version }}
         run: |-
-          GITHUB_SHA=$(git rev-parse HEAD)
           manifest-tool push from-args \
             --platforms linux/amd64,linux/arm64 \
-            --template "${IMAGE_REPOSITORY}"/toothpick-server:dev-ARCH-"${GITHUB_SHA}" \
+            --template "${IMAGE_REPOSITORY}"/toothpick-server:${CURRENT_VERSION}-ARCH" \
             --target "${IMAGE_REPOSITORY}"/toothpick-server:"${RELEASE_VERSION}"
 
       - name: Build and push Helm Chart
         shell: nix develop -v -c bash {0}
-        env:
-          RELEASE_VERSION: ${{ github.event.inputs.version }}
         run: |-
           export HELM_REGISTRY_CONFIG=/home/runner/.docker/config.json
           ./cli.sh push_helm_chart "${RELEASE_VERSION}" "${RELEASE_VERSION}" "oci://${IMAGE_REPOSITORY}/charts"
 
       - name: Create git tag
-        env:
-          RELEASE_VERSION: ${{ github.event.inputs.version }}
         run: |-
           git config --global user.email "ci-runner@shopstic.com"
           git config --global user.name "CI Runner"
           git tag "${RELEASE_VERSION}"
           git push origin --tags
+          
+          echo "ThisBuild / version := \"${NEXT_VERSION}-SNAPSHOT\"" > ./version.sbt
+          git commit -a -m "Bump version to ${NEXT_VERSION}-SNAPSHOT"
+          git push origin master

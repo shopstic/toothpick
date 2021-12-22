@@ -1,6 +1,6 @@
 global:
   image:
-    repository: public.ecr.aws/g1b1f7a7/toothpick-server
+    repository: public.ecr.aws/shopstic/toothpick-server
     pullPolicy: IfNotPresent
     tag: ""
 

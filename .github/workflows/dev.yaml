@@ -45,7 +45,7 @@ jobs:
     runs-on: [self-hosted, nix]
     needs: build-runner
     env:
-      IMAGE_REPOSITORY: public.ecr.aws/g1b1f7a7
+      IMAGE_REPOSITORY: public.ecr.aws/shopstic
     strategy:
       matrix:
         arch:
@@ -86,7 +86,7 @@ jobs:
     runs-on: [self-hosted, nix]
     needs: [build-runner, build-images]
     env:
-      IMAGE_REPOSITORY: public.ecr.aws/g1b1f7a7
+      IMAGE_REPOSITORY: public.ecr.aws/shopstic
     steps:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
       
@@ -111,7 +111,7 @@ jobs:
     runs-on: [self-hosted, nix]
     needs: [build-runner, build-images]
     env:
-      IMAGE_REPOSITORY: public.ecr.aws/g1b1f7a7
+      IMAGE_REPOSITORY: public.ecr.aws/shopstic
     steps:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
 
