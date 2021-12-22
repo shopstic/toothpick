@@ -61,4 +61,4 @@ jobs:
           
           echo "ThisBuild / version := \"${NEXT_VERSION}-SNAPSHOT\"" > ./version.sbt
           git commit -a -m "Bump version to ${NEXT_VERSION}-SNAPSHOT"
-          git push origin master
+          git push origin main
