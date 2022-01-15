@@ -1,7 +1,7 @@
 import sbt._
 
 object Dependencies {
-  val CHOPSTICKS_VERSION = "3.7.2"
+  val CHOPSTICKS_VERSION = "3.7.3"
   val ZIO_VERSION = "1.0.13"
 
   lazy val akkaGrpcRuntimeDeps = Seq(
@@ -58,11 +58,11 @@ object Dependencies {
   )
 
   lazy val quicklensDeps = Seq(
-    "com.softwaremill.quicklens" %% "quicklens" % "1.7.5"
+    "com.softwaremill.quicklens" %% "quicklens" % "1.8.2"
   )
 
   lazy val overrideDeps = Seq(
-    "com.typesafe.akka" %% "akka-discovery" % "2.6.17"
+    "com.typesafe.akka" %% "akka-discovery" % "2.6.18"
   )
 
   lazy val pprintDeps = Seq(
@@ -91,7 +91,7 @@ object Dependencies {
   )
 
   lazy val zioInteropReactivestreamsDeps = Seq(
-    "dev.zio" %% "zio-interop-reactivestreams" % "1.3.8"
+    "dev.zio" %% "zio-interop-reactivestreams" % "1.3.9"
   )
 
   lazy val zioDeps = Seq(

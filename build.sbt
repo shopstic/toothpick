@@ -7,7 +7,7 @@ import java.nio.file.Paths
 //ThisBuild / githubRepository := "toothpick"
 ThisBuild / organization := "dev.toothpick"
 
-ThisBuild / scalaVersion := "2.13.7"
+ThisBuild / scalaVersion := "2.13.8"
 
 //ThisBuild / resolvers ++= Seq(
 //  Resolver.githubPackages("shopstic", "chopsticks")
