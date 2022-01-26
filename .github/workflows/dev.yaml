@@ -29,6 +29,10 @@ jobs:
           CURRENT_VERSION=$(./release.sh get_release_version) || exit $?
           echo "::set-output name=version::${CURRENT_VERSION}"
 
+      - name: Build intellijScalaRunners
+        run: |-
+          nix build -L -v --no-link '.#packages.${{ matrix.arch }}.intellijScalaRunners'
+
       - name: Build runner
         run: |-
           nix build -L -v --no-link '.#packages.${{ matrix.arch }}.runnerJre'
@@ -36,6 +40,13 @@ jobs:
       - name: Cache runner
         env: 
           NIX_OUTPUT: .#packages.${{ matrix.arch }}.runnerJre
+        run: |
+          nix store sign "${NIX_OUTPUT}" -v -r -k ~/.secrets/nix-cache-private-key
+          nix copy -v "${NIX_OUTPUT}" --to s3://nixed/cache
+
+      - name: Cache intellijScalaRunners
+        env:
+          NIX_OUTPUT: .#packages.${{ matrix.arch }}.intellijScalaRunners
         run: |
           nix store sign "${NIX_OUTPUT}" -v -r -k ~/.secrets/nix-cache-private-key
           nix copy -v "${NIX_OUTPUT}" --to s3://nixed/cache
