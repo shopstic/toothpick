@@ -31,6 +31,8 @@
           };
 
           jdk = hotPot.packages.${toothpickSystem}.jdk17;
+          jre = hotPot.packages.${toothpickSystem}.jre17;
+
           compileJdk = toothpickPkgs.callPackage hotPot.lib.wrapJdk {
             inherit jdk;
             args = toothpickPkgs.lib.concatStringsSep " " (jdkArgs ++ [ ''--run "if [[ -f ./.env ]]; then source ./.env; fi"'' ]);
@@ -53,16 +55,16 @@
             {
               toothpickServer = toothpick.server;
               inherit fdbLib;
-              jre = jdk;
+              jre = jre;
             };
 
           toothpickRunnerJre = pkgs.callPackage ./nix/runner-jre.nix {
             toothpickRunnerBin = "${toothpick}/bin/toothpick-runner";
-            jre = jdk;
+            jre = jre;
           };
 
           toothpickRunnerJreDev = pkgs.callPackage ./nix/runner-jre.nix {
-            jre = jdk;
+            jre = jre;
           };
 
           jdkPrefix = "toothpick-";
