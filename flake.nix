@@ -53,16 +53,16 @@
             {
               toothpickServer = toothpick.server;
               inherit fdbLib;
-              jre = pkgs.jdk17;
+              jre = hotPotPkgs.jdk17;
             };
 
           toothpickRunnerJre = pkgs.callPackage ./nix/runner-jre.nix {
             toothpickRunnerBin = "${toothpick}/bin/toothpick-runner";
-            jre = pkgs.jdk17;
+            jre = hotPotPkgs.jdk17;
           };
 
           toothpickRunnerJreDev = pkgs.callPackage ./nix/runner-jre.nix {
-            jre = pkgs.jdk17;
+            jre = hotPotPkgs.jdk17;
           };
 
           jdkPrefix = "toothpick-";
