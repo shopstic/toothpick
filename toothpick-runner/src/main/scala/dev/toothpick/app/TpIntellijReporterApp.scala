@@ -16,6 +16,7 @@ import pureconfig.ConfigReader
 import pureconfig.generic.ProductHint
 import zio.console.putStrLn
 import zio.{ExitCode, UIO, URIO}
+import dev.chopsticks.fp.akka_env.AkkaEnv
 
 import java.util.UUID
 
@@ -71,6 +72,7 @@ object TpIntellijReporterApp extends zio.App {
         TypedConfig.live[AppConfig](logLevel = Log.Level.Info),
         TpIntellijRunnerApp.logRouterLayer,
         IzLogging.live(),
+        AkkaEnv.live(),
         apiClientLayer
       )
 

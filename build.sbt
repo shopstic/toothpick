@@ -9,10 +9,11 @@ ThisBuild / organization := "dev.toothpick"
 
 ThisBuild / scalaVersion := "2.13.8"
 
-//ThisBuild / resolvers ++= Seq(
-//  Resolver.githubPackages("shopstic", "chopsticks")
-//)
-
+ThisBuild / resolvers ++= Seq(
+    "Sonatype OSS Snapshots" at "https://s01.oss.sonatype.org/content/repositories/snapshots",
+    "Sonatype OSS Releases" at "https://s01.oss.sonatype.org/content/repositories/releases"
+  )
+  
 ThisBuild / javacOptions := Seq("-encoding", "UTF-8")
 ThisBuild / scalacOptions := Build.scalacOptions
 

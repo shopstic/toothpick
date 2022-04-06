@@ -20,6 +20,7 @@ import logstage.{ConsoleSink, Log}
 import pureconfig.ConfigReader
 import zio.console.putStrLn
 import zio.{ExitCode, Task, UIO, ULayer, URIO, ZLayer}
+import dev.chopsticks.fp.akka_env.AkkaEnv
 
 object TpIntellijRunnerApp extends zio.App {
   final case class AppConfig(
@@ -101,6 +102,7 @@ object TpIntellijRunnerApp extends zio.App {
         TypedConfig.live[AppConfig](logLevel = Log.Level.Info),
         logRouterLayer,
         IzLogging.live(),
+        AkkaEnv.live(),
         apiClientLayer
       )
 

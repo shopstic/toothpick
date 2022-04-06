@@ -5,7 +5,7 @@
     hotPot.url = "github:shopstic/nix-hot-pot";
     nixpkgs.follows = "hotPot/nixpkgs";
     flakeUtils.follows = "hotPot/flakeUtils";
-    fdb.url = "github:shopstic/nix-fdb";
+    fdb.follows = "hotPot/fdb";
   };
 
   outputs = { self, nixpkgs, flakeUtils, fdb, hotPot }:
@@ -26,11 +26,11 @@
             "--set LD_LIBRARY_PATH ${fdb.defaultPackage.${fdbLibSystem}.lib}"
           ];
           runJdk = pkgs.callPackage hotPot.lib.wrapJdk {
-            jdk = (import nixpkgs { system = fdbLibSystem; }).jdk11;
+            jdk = hotPot.packages.${fdbLibSystem}.jdk17;
             args = pkgs.lib.concatStringsSep " " jdkArgs;
           };
 
-          jdk = toothpickPkgs.jdk11_headless;
+          jdk = hotPotPkgs.jdk17;
           compileJdk = toothpickPkgs.callPackage hotPot.lib.wrapJdk {
             inherit jdk;
             args = toothpickPkgs.lib.concatStringsSep " " (jdkArgs ++ [ ''--run "if [[ -f ./.env ]]; then source ./.env; fi"'' ]);
@@ -53,16 +53,16 @@
             {
               toothpickServer = toothpick.server;
               inherit fdbLib;
-              jre = pkgs.jdk11_headless;
+              jre = pkgs.jdk17;
             };
 
           toothpickRunnerJre = pkgs.callPackage ./nix/runner-jre.nix {
             toothpickRunnerBin = "${toothpick}/bin/toothpick-runner";
-            jre = pkgs.jdk11_headless;
+            jre = pkgs.jdk17;
           };
 
           toothpickRunnerJreDev = pkgs.callPackage ./nix/runner-jre.nix {
-            jre = pkgs.jdk11_headless;
+            jre = pkgs.jdk17;
           };
 
           jdkPrefix = "toothpick-";
@@ -92,9 +92,22 @@
             { name = "update-intellij"; path = updateIntellij; }
             { name = "intellij-scala-runners"; path = intellijScalaRunners; }
           ];
+          vscodeSettings = pkgs.writeTextFile {
+            name = "vscode-settings.json";
+            text = builtins.toJSON {
+              "files.watcherExclude" = {
+                "**/target" = true;
+              };
+              "metals.sbtScript" = sbt + "/bin/sbt";
+              "nix.enableLanguageServer" = true;
+              "nix.formatterPath" = pkgs.nixpkgs-fmt + "/bin/nixpkgs-fmt";
+              "nix.serverPath" = pkgs.rnix-lsp + "/bin/rnix-lsp";
+            };
+          };
           devShell = pkgs.mkShellNoCC {
             shellHook = ''
               ln -Tfs ${devSdks} ./.dev-sdks
+              cat ${vscodeSettings} > ./.vscode/settings.json
             '';
             buildInputs = toothpick.buildInputs ++ builtins.attrValues {
               inherit (pkgs)

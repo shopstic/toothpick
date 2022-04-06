@@ -19,6 +19,7 @@ import zio.console.putStrLn
 import zio.{ExitCode, Task, UIO, URIO}
 
 import java.nio.file.{Files, Paths}
+import dev.chopsticks.fp.akka_env.AkkaEnv
 
 object TpConsoleRunnerApp extends zio.App {
   final case class AppConfig(
@@ -111,6 +112,7 @@ object TpConsoleRunnerApp extends zio.App {
         TypedConfig.live[AppConfig](logLevel = Log.Level.Info),
         stderrLogRouterLayer,
         IzLogging.live(),
+        AkkaEnv.live(),
         apiClientLayer
       )
       .catchAllTrace { case (e, maybeTrace) =>

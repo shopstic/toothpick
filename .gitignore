@@ -8,3 +8,4 @@ target
 /.metals
 /result
 /.dev-sdks
+.bloop

@@ -8,6 +8,7 @@ import zio.{Cause, ZLayer}
 import zio.magic._
 import zio.test.Assertion._
 import zio.test.{DefaultRunnableSpec, _}
+import dev.chopsticks.fp.akka_env.AkkaEnv
 
 object TpIntellijRunnerAppConfigSpec extends DefaultRunnableSpec {
   implicit class ToTestZLayer[RIn, ROut](layer: ZLayer[RIn, Throwable, ROut]) {
@@ -24,6 +25,7 @@ object TpIntellijRunnerAppConfigSpec extends DefaultRunnableSpec {
   )
     .injectShared(
       IzLoggingRouter.live,
+      AkkaEnv.live().orFail,
       IzLogging.live().orFail,
       HoconConfig.live(Some(TpIntellijRunnerApp.getClass)).orFail,
       TypedConfig.live[TpIntellijRunnerApp.AppConfig](logLevel = Log.Level.Debug).orFail

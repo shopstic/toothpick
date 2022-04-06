@@ -17,6 +17,7 @@ import pureconfig.ConfigReader
 import scalapb.json4s.JsonFormat
 import zio.console.putStrLn
 import zio.{ExitCode, Task, UIO, ULayer, URIO, ZLayer}
+import dev.chopsticks.fp.akka_env.AkkaEnv
 
 object TpConsoleRunnerStageApp extends zio.App {
   final case class AppConfig(
@@ -70,7 +71,8 @@ object TpConsoleRunnerStageApp extends zio.App {
         HoconConfig.live(Some(this.getClass)),
         TypedConfig.live[AppConfig](logLevel = Log.Level.Info),
         stderrLogRouterLayer,
-        IzLogging.live()
+        IzLogging.live(),
+        AkkaEnv.live()
       )
       .catchAllTrace { case (e, maybeTrace) =>
         UIO {
