@@ -109,6 +109,37 @@ object TpReporter {
         }
       }
 
+      def reportTeamCityEvent(content: String) = {
+        TpIntellijServiceMessageParser.parse(content) match {
+          case Right(sm) =>
+            sm.name match {
+              case Names.TEST_FAILED =>
+                reportedOutcomeRef
+                  .set(Some(TestFailed(
+                    message = unescape(sm.attributes.getOrElse(Attrs.MESSAGE, "")),
+                    details = unescape(sm.attributes.getOrElse(Attrs.DETAILS, ""))
+                  ))) *> noop
+
+              case Names.TEST_IGNORED =>
+                reportedOutcomeRef
+                  .set(Some(TestIgnored)) *> noop
+
+              case Names.MESSAGE if sm.attributes.get(Attrs.STATUS).contains("ERROR") =>
+                reportedOutcomeRef
+                  .set(Some(TestFailed(
+                    message = unescape(sm.attributes.getOrElse(Attrs.TEXT, "")),
+                    details = unescape(sm.attributes.getOrElse(Attrs.ERROR_DETAILS, ""))
+                  ))) *> noop
+
+              case _ =>
+                noop
+            }
+
+          case Left(reason) =>
+            zlogger.warn(s"Failed parsing service message $content $reason") *> noop
+        }
+      }
+
       testReportsStream
         .mapM { report =>
           val task: UIO[Chunk[TpReporterEvent]] = report.event match {
@@ -130,34 +161,7 @@ object TpReporter {
                   zlogger.info(s"$workerNode finished pulling $image $result") *> noop
 
                 case MatchesTeamCityServiceMessageEvent(content) =>
-                  TpIntellijServiceMessageParser.parse(content) match {
-                    case Right(sm) =>
-                      sm.name match {
-                        case Names.TEST_FAILED =>
-                          reportedOutcomeRef
-                            .set(Some(TestFailed(
-                              message = unescape(sm.attributes.getOrElse(Attrs.MESSAGE, "")),
-                              details = unescape(sm.attributes.getOrElse(Attrs.DETAILS, ""))
-                            ))) *> noop
-
-                        case Names.TEST_IGNORED =>
-                          reportedOutcomeRef
-                            .set(Some(TestIgnored)) *> noop
-
-                        case Names.MESSAGE if sm.attributes.get(Attrs.STATUS).contains("ERROR") =>
-                          reportedOutcomeRef
-                            .set(Some(TestFailed(
-                              message = unescape(sm.attributes.getOrElse(Attrs.TEXT, "")),
-                              details = unescape(sm.attributes.getOrElse(Attrs.ERROR_DETAILS, ""))
-                            ))) *> noop
-
-                        case _ =>
-                          noop
-                      }
-
-                    case Left(reason) =>
-                      zlogger.warn(s"Failed parsing service message $content $reason") *> noop
-                  }
+                  reportTeamCityEvent(content)
 
                 case TpTestOutputLine(content, pipe) =>
                   output(TestOutputLine(test.id, pipe, content))
@@ -166,7 +170,13 @@ object TpReporter {
                   if (isLast) {
                     lineBuffer.takeAll.flatMap { parts =>
                       val concatenated = parts.mkString("", "", content)
-                      output(TestOutputLine(test.id, pipe, concatenated))
+
+                      TpTestOutputLine(concatenated, pipe) match {
+                        case MatchesTeamCityServiceMessageEvent(content) =>
+                          reportTeamCityEvent(content)
+                        case _ =>
+                          output(TestOutputLine(test.id, pipe, concatenated))
+                      }
                     }
                   }
                   else {
