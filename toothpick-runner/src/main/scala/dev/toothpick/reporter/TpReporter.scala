@@ -322,6 +322,52 @@ object TpReporter {
           }
       }
 
+      def reportTeamCityEvent(time: Instant, content: String) = {
+        TpIntellijServiceMessageParser.parse(content) match {
+          case Right(sm) =>
+            sm.name match {
+              case Names.TEST_FINISHED =>
+                reportNext(
+                  sm.attributes.get(Attrs.NAME).map(unescape),
+                  TestPassed,
+                  time
+                )
+
+              case Names.TEST_FAILED =>
+                reportNext(
+                  sm.attributes.get(Attrs.NAME),
+                  TestFailed(
+                    message = unescape(sm.attributes.getOrElse(Names.MESSAGE, "")),
+                    details = unescape(sm.attributes.getOrElse(Attrs.DETAILS, ""))
+                  ),
+                  time
+                )
+
+              case Names.TEST_IGNORED =>
+                reportNext(
+                  sm.attributes.get(Attrs.NAME),
+                  TestIgnored,
+                  time
+                )
+
+              case Names.MESSAGE if sm.attributes.get(Attrs.STATUS).contains("ERROR") =>
+                reportNext(
+                  sm.attributes.get(Attrs.NAME),
+                  TestFailed(
+                    message = unescape(sm.attributes.getOrElse(Attrs.TEXT, "")),
+                    details = unescape(sm.attributes.getOrElse(Attrs.ERROR_DETAILS, ""))
+                  ),
+                  time
+                )
+
+              case _ => noop
+            }
+
+          case Left(reason) =>
+            zlogger.warn(s"Failed parsing service message $content $reason") *> noop
+        }
+      }
+
       testReportsStream
         .mapM { report: TpTestReport =>
           val time = report.time
@@ -343,49 +389,7 @@ object TpReporter {
               zlogger.info(s"$workerNode finished pulling $image $result") *> noop
 
             case MatchesTeamCityServiceMessageEvent(content) =>
-              TpIntellijServiceMessageParser.parse(content) match {
-                case Right(sm) =>
-                  sm.name match {
-                    case Names.TEST_FINISHED =>
-                      reportNext(
-                        sm.attributes.get(Attrs.NAME).map(unescape),
-                        TestPassed,
-                        time
-                      )
-
-                    case Names.TEST_FAILED =>
-                      reportNext(
-                        sm.attributes.get(Attrs.NAME),
-                        TestFailed(
-                          message = unescape(sm.attributes.getOrElse(Names.MESSAGE, "")),
-                          details = unescape(sm.attributes.getOrElse(Attrs.DETAILS, ""))
-                        ),
-                        time
-                      )
-
-                    case Names.TEST_IGNORED =>
-                      reportNext(
-                        sm.attributes.get(Attrs.NAME),
-                        TestIgnored,
-                        time
-                      )
-
-                    case Names.MESSAGE if sm.attributes.get(Attrs.STATUS).contains("ERROR") =>
-                      reportNext(
-                        sm.attributes.get(Attrs.NAME),
-                        TestFailed(
-                          message = unescape(sm.attributes.getOrElse(Attrs.TEXT, "")),
-                          details = unescape(sm.attributes.getOrElse(Attrs.ERROR_DETAILS, ""))
-                        ),
-                        time
-                      )
-
-                    case _ => noop
-                  }
-
-                case Left(reason) =>
-                  zlogger.warn(s"Failed parsing service message $content $reason") *> noop
-              }
+              reportTeamCityEvent(time, content)
 
             case TpTestOutputLine(content, pipe) =>
               output(TestOutputLine(suite.id, pipe, content))
@@ -394,7 +398,13 @@ object TpReporter {
               if (isLast) {
                 lineBuffer.takeAll.flatMap { parts =>
                   val concatenated = parts.mkString("", "", content)
-                  output(TestOutputLine(suite.id, pipe, concatenated))
+
+                  TpTestOutputLine(concatenated, pipe) match {
+                    case MatchesTeamCityServiceMessageEvent(content) =>
+                      reportTeamCityEvent(time, content)
+                    case _ =>
+                      output(TestOutputLine(suite.id, pipe, concatenated))
+                  }
                 }
               }
               else {
