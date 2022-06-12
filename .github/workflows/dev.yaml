@@ -14,7 +14,7 @@ jobs:
       matrix:
         arch:
           - x86_64-linux
-          - x86_64-darwin
+          - aarch64-linux
           - aarch64-darwin
     outputs:
       version: ${{ steps.determine-version.outputs.version }}
