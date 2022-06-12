@@ -7,6 +7,9 @@
 , writeTextFile
 , dumb-init
 , docker-client
+, prom2json
+, curl
+, jq
 }:
 let
   baseImage = dockerTools.pullImage {
@@ -36,6 +39,16 @@ let
         "$@"
     '';
   };
+  prom2jq = writeTextFile {
+    name = "prom2jq";
+    executable = true;
+    text = ''
+      #!/usr/bin/env bash
+      METRICS_URI=''${1:?"Metrics URI is required"}
+      shift
+      ${curl}/bin/curl -sf "''${METRICS_URI}" | ${prom2json}/bin/prom2json | ${jq}/bin/jq "$@"
+    '';
+  };
 in
 dockerTools.buildLayeredImage
 {
@@ -43,7 +56,7 @@ dockerTools.buildLayeredImage
   fromImage = baseImage;
   config = {
     Env = [
-      "PATH=${lib.makeBinPath [ docker-client dumb-init jre ]}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      "PATH=${lib.makeBinPath [ docker-client dumb-init jre prom2jq ]}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     ];
     Entrypoint = [ entrypoint ];
   };

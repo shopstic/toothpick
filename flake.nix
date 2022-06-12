@@ -5,7 +5,7 @@
     hotPot.url = "github:shopstic/nix-hot-pot";
     nixpkgs.follows = "hotPot/nixpkgs";
     flakeUtils.follows = "hotPot/flakeUtils";
-    fdb.follows = "hotPot/fdb";
+    fdb.url = "github:shopstic/nix-fdb/7.1.9";
   };
 
   outputs = { self, nixpkgs, flakeUtils, fdb, hotPot }:
@@ -15,20 +15,16 @@
           pkgs = import nixpkgs { inherit system; };
           hotPotPkgs = hotPot.packages.${system};
 
-          fdbLib = fdb.defaultPackage.${system}.lib;
-          fdbLibSystem = if system == "aarch64-darwin" then "x86_64-darwin" else system;
+          fdbLib = fdb.packages.${system}.fdb_7.lib;
+          jdkArgs = [
+            "--set DYLD_LIBRARY_PATH ${fdbLib}"
+            "--set LD_LIBRARY_PATH ${fdbLib}"
+            "--set JDK_JAVA_OPTIONS -DFDB_LIBRARY_PATH_FDB_JAVA=${fdbLib}/libfdb_java.${if pkgs.stdenv.isDarwin then "jnilib" else "so"}"
+          ];
+
           # sbtn doesn't yet support aarch64-linux
           toothpickSystem = if system == "aarch64-linux" then "x86_64-linux" else system;
           toothpickPkgs = import nixpkgs { system = toothpickSystem; };
-
-          jdkArgs = [
-            "--set DYLD_LIBRARY_PATH ${fdb.defaultPackage.${fdbLibSystem}.lib}"
-            "--set LD_LIBRARY_PATH ${fdb.defaultPackage.${fdbLibSystem}.lib}"
-          ];
-          runJdk = pkgs.callPackage hotPot.lib.wrapJdk {
-            jdk = hotPot.packages.${fdbLibSystem}.jdk17;
-            args = pkgs.lib.concatStringsSep " " jdkArgs;
-          };
 
           jdk = hotPot.packages.${toothpickSystem}.jdk17;
           jre = hotPot.packages.${toothpickSystem}.jre17;
@@ -72,7 +68,7 @@
             set -euo pipefail
 
             THIS_PATH=$(realpath .)
-            SDK_NAMES=(compile run runner-dev)
+            SDK_NAMES=(compile runner-dev)
 
             for SDK_NAME in "''${SDK_NAMES[@]}"
             do
@@ -89,7 +85,6 @@
           intellijScalaRunners = pkgs.callPackage ./nix/intellij-scala-runners.nix { };
           devSdks = pkgs.linkFarm "dev-sdks" [
             { name = "compile-jdk"; path = compileJdk; }
-            { name = "run-jdk"; path = runJdk; }
             { name = "runner-dev-jdk"; path = toothpickRunnerJreDev; }
             { name = "update-intellij"; path = updateIntellij; }
             { name = "intellij-scala-runners"; path = intellijScalaRunners; }
