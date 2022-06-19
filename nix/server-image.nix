@@ -13,12 +13,12 @@
 }:
 let
   baseImage = dockerTools.pullImage {
-    imageName = "docker.io/library/ubuntu";
-    imageDigest = "sha256:93a94c12448f393522f44d8a1b34936b7f76890adea34b80b87a245524d1d574";
+    imageName = "public.ecr.aws/lts/ubuntu";
+    imageDigest = "sha256:62b8f60c5c8e1717f460bb7af05e558b74feb8ac460ff2abbdd3a98becdc15ce";
     sha256 =
       if stdenv.isx86_64 then
-        "sha256-s+eiBV7iA29UxnWg9rI2oMpwH/CNc9QRPbOUJJyBoTk=" else
-        "sha256-rAy5pQ3wrBSNzTqwX8WTEfTqVmILPGqQg/j69v2C4EM=";
+        "sha256-tp9ionlqhxDIfM2LEp6aHcl00lvCxxgDtohY5zc2tIU=" else
+        "sha256-SbQtlTrGf8hZePq6rX8J+5oa62lAWZRcxKJYPlzgCV4=";
   };
   javaSecurityOverrides = writeTextFile {
     name = "java.security.overrides";
@@ -56,6 +56,7 @@ dockerTools.buildLayeredImage
   fromImage = baseImage;
   config = {
     Env = [
+      "FDB_NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY=${fdbLib}"
       "PATH=${lib.makeBinPath [ docker-client dumb-init jre prom2jq ]}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     ];
     Entrypoint = [ entrypoint ];
