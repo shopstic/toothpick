@@ -49,8 +49,8 @@ object Dependencies {
   )
 
   lazy val jsoniterDeps = Seq(
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.13.30",
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.13.30" % "provided"
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.13.38",
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.13.38" % "provided"
   )
 
   lazy val pureconfigEnumeratumDeps = Seq(
