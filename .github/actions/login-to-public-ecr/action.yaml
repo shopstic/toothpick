@@ -12,4 +12,4 @@ runs:
       env: 
         IMAGE_REPO: ${{ inputs.imageRepo }}
       run: |-
-        aws ecr-public get-login-password | docker login --username AWS --password-stdin "${IMAGE_REPO}"
+        aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin "${IMAGE_REPO}"
