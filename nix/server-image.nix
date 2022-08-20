@@ -13,12 +13,12 @@
 }:
 let
   baseImage = dockerTools.pullImage {
-    imageName = "public.ecr.aws/lts/ubuntu";
-    imageDigest = "sha256:62b8f60c5c8e1717f460bb7af05e558b74feb8ac460ff2abbdd3a98becdc15ce";
+    imageName = "docker.io/library/ubuntu";
+    imageDigest = "sha256:34fea4f31bf187bc915536831fd0afc9d214755bf700b5cdb1336c82516d154e";
     sha256 =
       if stdenv.isx86_64 then
-        "sha256-tp9ionlqhxDIfM2LEp6aHcl00lvCxxgDtohY5zc2tIU=" else
-        "sha256-SbQtlTrGf8hZePq6rX8J+5oa62lAWZRcxKJYPlzgCV4=";
+        "sha256-BvCwhmD6YXiQBAugQyqlbrvonHO4L8gjieYfNiTvNpc=" else
+        "sha256-6ywrDWx9bsVrlDKBZwIhXl0Ar35YVg9rjFBHsdCb2eM=";
   };
   javaSecurityOverrides = writeTextFile {
     name = "java.security.overrides";

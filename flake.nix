@@ -22,28 +22,24 @@
             "--set JDK_JAVA_OPTIONS -DFDB_LIBRARY_PATH_FDB_JAVA=${fdbLib}/libfdb_java.${if pkgs.stdenv.isDarwin then "jnilib" else "so"}"
           ];
 
-          # sbtn doesn't yet support aarch64-linux
-          toothpickSystem = if system == "aarch64-linux" then "x86_64-linux" else system;
-          toothpickPkgs = import nixpkgs { system = toothpickSystem; };
+          jdk = hotPot.packages.${system}.jdk17;
+          jre = hotPot.packages.${system}.jre17;
 
-          jdk = hotPot.packages.${toothpickSystem}.jdk17;
-          jre = hotPot.packages.${toothpickSystem}.jre17;
-
-          compileJdk = toothpickPkgs.callPackage hotPot.lib.wrapJdk {
+          compileJdk = pkgs.callPackage hotPot.lib.wrapJdk {
             inherit jdk;
-            args = toothpickPkgs.lib.concatStringsSep " " (jdkArgs ++ [ ''--run "if [[ -f ./.env ]]; then source ./.env; fi"'' ]);
+            args = pkgs.lib.concatStringsSep " " (jdkArgs ++ [ ''--run "if [[ -f ./.env ]]; then source ./.env; fi"'' ]);
           };
-          sbt = toothpickPkgs.sbt.override {
+          sbt = pkgs.sbt.override {
             jre = {
               home = compileJdk;
             };
           };
 
-          toothpickDeps = toothpickPkgs.callPackage ./nix/deps.nix {
+          toothpickDeps = pkgs.callPackage ./nix/deps.nix {
             inherit sbt jdk;
           };
 
-          toothpick = toothpickPkgs.callPackage ./nix/toothpick.nix {
+          toothpick = pkgs.callPackage ./nix/toothpick.nix {
             inherit sbt jdk toothpickDeps;
           };
 

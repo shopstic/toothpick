@@ -42,34 +42,34 @@ stdenv.mkDerivation {
     export SBT_OPTS="-Dsbt.global.base=$XDG_CACHE_HOME/sbt -Dsbt.ivy.home=$XDG_CACHE_HOME/ivy -Xmx4g -Xss6m"
     echo "SBT_OPTS=$SBT_OPTS"
 
-    sbt --client cq < <(echo q)
-    sbt --client 'set server / dockerApiVersion := Some(com.typesafe.sbt.packager.docker.DockerApiVersion(1, 41))'
-    sbt --client 'set server / dockerVersion := com.typesafe.sbt.packager.docker.DockerVersion.parse("20.10.10")'
+    sbt --java-client cq < <(echo q)
+    sbt --java-client 'set server / dockerApiVersion := Some(com.typesafe.sbt.packager.docker.DockerApiVersion(1, 41))'
+    sbt --java-client 'set server / dockerVersion := com.typesafe.sbt.packager.docker.DockerVersion.parse("20.10.10")'
   '';
 
   buildPhase = ''
-    sbt --client compile
-    sbt --client Test / compile
+    sbt --java-client compile
+    sbt --java-client Test / compile
   '';
 
   checkPhase = ''
-    sbt --client test
+    sbt --java-client test
   '';
 
   installPhase = ''
-    sbt --client runner / stage
+    sbt --java-client runner / stage
     mkdir -p $out
     rsync -avrx --exclude '*.bat' ./toothpick-runner/target/universal/stage/ $out/
 
-    sbt --client server / stage
+    sbt --java-client server / stage
     mkdir -p $server
     rsync -avrx --exclude '*.bat' ./toothpick-server/target/universal/stage/ $server/
 
-    sbt --client server / Docker / stage
+    sbt --java-client server / Docker / stage
     mkdir -p $dockerServer
     rsync -avrx --exclude '*.bat' ./toothpick-server/target/docker/stage/ $dockerServer/
 
-    sbt --client shutdown
+    sbt --java-client shutdown
   '';
 
   doCheck = true;
@@ -85,6 +85,6 @@ stdenv.mkDerivation {
       description = "Toothpick";
       homepage = "https://toothpick.dev";
       license = licenses.asl20;
-      platforms = [ "x86_64-darwin" "aarch64-darwin" "x86_64-linux" ];
+      platforms = [ "x86_64-linux" "aarch64-darwin" "aarch64-linux" ];
     };
 }
