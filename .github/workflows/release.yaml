@@ -17,13 +17,13 @@ defaults:
 jobs:
   release:
     name: Release ${{ github.event.inputs.releaseVersion }}
-    runs-on: [self-hosted, nix]
+    runs-on: [self-hosted, nix, arm64-linux, small]
     env:
       IMAGE_REPOSITORY: public.ecr.aws/shopstic
       RELEASE_VERSION: ${{ github.event.inputs.releaseVersion }}
       NEXT_VERSION: ${{ github.event.inputs.nextVersion }}
     steps:
-      - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
