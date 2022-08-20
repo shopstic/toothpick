@@ -9,16 +9,19 @@ defaults:
 jobs:
   build-runner:
     name: Build runner
-    runs-on: [self-hosted, nix, "${{ matrix.arch.runner }}", medium]
+    runs-on: [self-hosted, nix, "${{ matrix.arch.runner }}", "${{ matrix.arch.size }}"]
     strategy:
       matrix:
         arch:
           - nix: x86_64-linux
             runner: amd64-linux
+            size: medium
           - nix: aarch64-linux
             runner: arm64-linux
+            size: medium
           - nix: aarch64-darwin
-            runner: arm64-linux
+            runner: arm64-darwin
+            size: small
     outputs:
       version: ${{ steps.determine-version.outputs.version }}
     steps:
