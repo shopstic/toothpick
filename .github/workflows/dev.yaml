@@ -15,13 +15,17 @@ jobs:
         arch:
           - nix: x86_64-linux
             runner: amd64-linux
+            image: amd64
             size: medium
           - nix: aarch64-linux
             runner: arm64-linux
+            image: arm64
             size: medium
           - nix: aarch64-darwin
             runner: arm64-darwin
             size: small
+    env:
+      IMAGE_REPOSITORY: public.ecr.aws/shopstic
     outputs:
       version: ${{ steps.determine-version.outputs.version }}
     steps:
@@ -44,7 +48,7 @@ jobs:
           nix build -L -v --no-link '.#packages.${{ matrix.arch.nix }}.runnerJre'
 
       - name: Cache runner
-        env: 
+        env:
           NIX_OUTPUT: .#packages.${{ matrix.arch.nix }}.runnerJre
         run: |
           nix store sign "${NIX_OUTPUT}" -v -r -k ~/.secrets/nix-cache-private-key
@@ -57,45 +61,27 @@ jobs:
           nix store sign "${NIX_OUTPUT}" -v -r -k ~/.secrets/nix-cache-private-key
           nix copy -v "${NIX_OUTPUT}" --to s3://nixed/cache
 
-  build-images:
-    name: Build images
-    runs-on: [self-hosted, nix, "${{ matrix.arch.runner }}", small]
-    needs: build-runner
-    env:
-      IMAGE_REPOSITORY: public.ecr.aws/shopstic
-    strategy:
-      matrix:
-        arch:
-          - nix: x86_64
-            runner: amd64-linux
-          - nix: aarch64
-            runner: arm64-linux
-    steps:
-      - uses: actions/checkout@v3
+      - name: Build container images
+        if: matrix.arch.image != ""
+        run: |-
+          nix build -L -v '.#packages.${{ matrix.arch.nix }}.serverImage' 
 
       - name: Login to Amazon ECR
         uses: ./.github/actions/login-to-public-ecr
+        if: matrix.arch.image != ""
         with:
           imageRepo: ${{ env.IMAGE_REPOSITORY }}
 
-      - name: Build container images
-        run: |-
-          nix build -L -v '.#packages.${{ matrix.arch.nix }}-linux.serverImage' 
-
       - name: Push
         env:
-          GITHUB_SHA: ${{ github.sha }}  
-          NIX_ARCH: ${{ matrix.arch.nix }}
-          RELEASE_VERSION: ${{ needs.build-runner.outputs.version }}
+          GITHUB_SHA: ${{ github.sha }}
+          IMAGE_ARCH: ${{ matrix.arch.image }}
+          RELEASE_VERSION: ${{ steps.determine-version.outputs.version }}
+        if: matrix.arch.image != ""
         shell: nix develop -v -c bash {0}
         run: |-
-          IMAGE_ARCH="amd64"
-          if [[ "${NIX_ARCH}" == "aarch64" ]]; then
-            IMAGE_ARCH="arm64"
-          fi
-
           IMAGE_TAG="${RELEASE_VERSION}-${IMAGE_ARCH}"
-        
+          
           skopeo --insecure-policy copy \
             docker-archive:./result \
             docker://"${IMAGE_REPOSITORY}"/toothpick-server:"${IMAGE_TAG}"
@@ -103,7 +89,7 @@ jobs:
   push-manifest:
     name: Push multi-arch manifest
     runs-on: [self-hosted, nix, arm64-linux, small]
-    needs: [build-runner, build-images]
+    needs: [build-runner]
     env:
       IMAGE_REPOSITORY: public.ecr.aws/shopstic
     steps:
@@ -128,7 +114,7 @@ jobs:
   build-helm-chart:
     name: Build Helm chart
     runs-on: [self-hosted, nix, arm64-linux, small]
-    needs: [build-runner, build-images]
+    needs: [build-runner]
     env:
       IMAGE_REPOSITORY: public.ecr.aws/shopstic
     steps:
