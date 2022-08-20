@@ -41,11 +41,11 @@ jobs:
 
       - name: Build intellijScalaRunners
         run: |-
-          nix build -v --no-link '.#packages.${{ matrix.arch.nix }}.intellijScalaRunners'
+          nix build -L --no-link '.#packages.${{ matrix.arch.nix }}.intellijScalaRunners'
 
       - name: Build runner
         run: |-
-          nix build -v --no-link '.#packages.${{ matrix.arch.nix }}.runnerJre'
+          nix build -L --no-link '.#packages.${{ matrix.arch.nix }}.runnerJre'
 
       - name: Cache runner
         env:
@@ -64,7 +64,7 @@ jobs:
       - name: Build container images
         if: ${{ matrix.arch.image }}
         run: |-
-          nix build -v '.#packages.${{ matrix.arch.nix }}.serverImage' 
+          nix build -L '.#packages.${{ matrix.arch.nix }}.serverImage' 
 
       - name: Login to Amazon ECR
         uses: ./.github/actions/login-to-public-ecr
