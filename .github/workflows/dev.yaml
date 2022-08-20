@@ -66,9 +66,9 @@ jobs:
     strategy:
       matrix:
         arch:
-          - nix: x86_64-linux
+          - nix: x86_64
             runner: amd64-linux
-          - nix: aarch64-linux
+          - nix: aarch64
             runner: arm64-linux
     steps:
       - uses: actions/checkout@v3
@@ -85,7 +85,7 @@ jobs:
       - name: Push
         env:
           GITHUB_SHA: ${{ github.sha }}  
-          NIX_ARCH: ${{ matrix.arch }}
+          NIX_ARCH: ${{ matrix.arch.nix }}
           RELEASE_VERSION: ${{ needs.build-runner.outputs.version }}
         shell: nix develop -v -c bash {0}
         run: |-
