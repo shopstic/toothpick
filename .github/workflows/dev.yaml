@@ -62,13 +62,13 @@ jobs:
           nix copy -v "${NIX_OUTPUT}" --to s3://nixed/cache
 
       - name: Build container images
-        if: matrix.arch.image != ""
+        if: ${{ matrix.arch.image }}
         run: |-
           nix build -L -v '.#packages.${{ matrix.arch.nix }}.serverImage' 
 
       - name: Login to Amazon ECR
         uses: ./.github/actions/login-to-public-ecr
-        if: matrix.arch.image != ""
+        if: ${{ matrix.arch.image }}
         with:
           imageRepo: ${{ env.IMAGE_REPOSITORY }}
 
@@ -77,7 +77,7 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
           IMAGE_ARCH: ${{ matrix.arch.image }}
           RELEASE_VERSION: ${{ steps.determine-version.outputs.version }}
-        if: matrix.arch.image != ""
+        if: ${{ matrix.arch.image }}
         shell: nix develop -v -c bash {0}
         run: |-
           IMAGE_TAG="${RELEASE_VERSION}-${IMAGE_ARCH}"
