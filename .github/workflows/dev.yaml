@@ -9,7 +9,7 @@ defaults:
 jobs:
   build-runner:
     name: Build runner
-    runs-on: [self-hosted, nix, "${{ matrix.arch.runner }}", "${{ matrix.arch.size }}"]
+    runs-on: [self-hosted, nix, general, "${{ matrix.arch.runner }}", "${{ matrix.arch.size }}"]
     timeout-minutes: 20
     strategy:
       matrix:
@@ -89,7 +89,7 @@ jobs:
 
   push-manifest:
     name: Push multi-arch manifest
-    runs-on: [self-hosted, nix, arm64-linux, small]
+    runs-on: [self-hosted, nix, general, arm64-linux, small]
     timeout-minutes: 5
     needs: [build-runner]
     env:
@@ -115,7 +115,7 @@ jobs:
   
   build-helm-chart:
     name: Build Helm chart
-    runs-on: [self-hosted, nix, arm64-linux, small]
+    runs-on: [self-hosted, nix, general, arm64-linux, small]
     timeout-minutes: 5
     needs: [build-runner]
     env:

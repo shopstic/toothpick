@@ -17,7 +17,7 @@ defaults:
 jobs:
   release:
     name: Release ${{ github.event.inputs.releaseVersion }}
-    runs-on: [self-hosted, nix, arm64-linux, small]
+    runs-on: [self-hosted, nix, general, arm64-linux, small]
     timeout-minutes: 5
     env:
       IMAGE_REPOSITORY: public.ecr.aws/shopstic
