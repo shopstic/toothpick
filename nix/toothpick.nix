@@ -45,8 +45,10 @@ let
 
       export SBT_OPTS="-Dsbt.global.base=$XDG_CACHE_HOME/sbt -Dsbt.ivy.home=$XDG_CACHE_HOME/ivy -Xmx4g -Xss6m"
       echo "SBT_OPTS=$SBT_OPTS"
-      
+
       trap "sbt --java-client shutdown" EXIT
+
+      sed -i '/project.git/s/.*/project.git = false/' ./.scalafmt.conf
 
       sbt --java-client cq < <(echo q)
       sbt --java-client 'set server / dockerApiVersion := Some(com.typesafe.sbt.packager.docker.DockerApiVersion(1, 41))'
