@@ -27,7 +27,7 @@ object TpConsoleRunnerStageApp extends zio.App {
   )
 
   object AppConfig {
-    //noinspection TypeAnnotation
+    // noinspection TypeAnnotation
     implicit lazy val configReader = {
       import dev.chopsticks.util.config.PureconfigConverters._
       ConfigReader[AppConfig]

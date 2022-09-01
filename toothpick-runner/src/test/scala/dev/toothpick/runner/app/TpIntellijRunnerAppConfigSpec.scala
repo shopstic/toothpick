@@ -15,7 +15,7 @@ object TpIntellijRunnerAppConfigSpec extends DefaultRunnableSpec {
     def orFail: ZLayer[RIn, TestFailure[Throwable], ROut] = layer.mapError(e => TestFailure.Runtime(Cause.fail(e)))
   }
 
-  //noinspection TypeAnnotation
+  // noinspection TypeAnnotation
   override def spec = suite("TpRunnerAppConfigSpec")(
     testM("should load default config from classpath") {
       for {

@@ -31,7 +31,7 @@ object TpWorkerApp extends ZAkkaApp {
     val typedConfig = grpcClientSettingsConfigReader
       .toManaged_
       .flatMap { implicit settingsConfigReader: ConfigReader[GrpcClientSettings] =>
-        //noinspection TypeAnnotation
+        // noinspection TypeAnnotation
         implicit val configReader = {
           import dev.chopsticks.util.config.PureconfigConverters._
           ConfigReader[TpWorkerAppConfig]
@@ -80,7 +80,7 @@ object TpWorkerApp extends ZAkkaApp {
       }
   }
 
-  //noinspection TypeAnnotation
+  // noinspection TypeAnnotation
   def app = {
     for {
       appConfig <- TypedConfig.get[TpWorkerAppConfig]

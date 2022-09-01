@@ -29,7 +29,7 @@ final case class TpMasterAppConfig(
 )
 
 object TpMasterAppConfig {
-  //noinspection TypeAnnotation
+  // noinspection TypeAnnotation
   implicit lazy val configConvert = {
     import dev.chopsticks.util.config.PureconfigConverters._
     ConfigConvert[TpMasterAppConfig]
@@ -70,7 +70,7 @@ object TpMasterApp extends ZAkkaApp {
       )
   }
 
-  //noinspection TypeAnnotation
+  // noinspection TypeAnnotation
   def app = {
     for {
       appConfig <- TypedConfig.get[TpMasterAppConfig]

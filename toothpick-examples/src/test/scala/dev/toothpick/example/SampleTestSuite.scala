@@ -29,7 +29,7 @@ final class SampleTestSuite extends AsyncWordSpecLike {
         Future {
           blocking {
             for (i <- 1 to 30) {
-              println(s"Going to sleep round $i")
+              println(s"Going to sleep, round $i")
               Thread.sleep(1000)
             }
             true mustBe true

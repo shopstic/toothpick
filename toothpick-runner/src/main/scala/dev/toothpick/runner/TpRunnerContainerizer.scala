@@ -26,7 +26,7 @@ object TpRunnerContainerizer {
 
   sealed trait ContainerizerImageArch extends EnumEntry with Lowercase
   object ContainerizerImageArch extends enumeratum.Enum[ContainerizerImageArch] {
-    //noinspection TypeAnnotation
+    // noinspection TypeAnnotation
     val values = findValues
     case object Auto extends ContainerizerImageArch
     case object Amd64 extends ContainerizerImageArch
@@ -65,7 +65,7 @@ object TpRunnerContainerizer {
   )
 
   object TpRunnerContainerizerConfig {
-    //noinspection TypeAnnotation
+    // noinspection TypeAnnotation
     implicit lazy val configReader = {
       import dev.chopsticks.util.config.PureconfigConverters._
       import pureconfig.module.enumeratum._
@@ -73,7 +73,7 @@ object TpRunnerContainerizer {
     }
   }
 
-  //noinspection MatchToPartialFunction
+  // noinspection MatchToPartialFunction
   def containerize(
     context: TpRunnerContext,
     containerizerConfig: TpRunnerContainerizerConfig

@@ -40,24 +40,24 @@ jobs:
           CURRENT_VERSION=$(./release.sh get_release_version) || exit $?
           echo "::set-output name=version::${CURRENT_VERSION}"
 
-      - name: Build intellijScalaRunners
+      - name: Build intellij-scala-runners
         run: |-
-          nix build -L --no-link '.#packages.${{ matrix.arch.nix }}.intellijScalaRunners'
+          nix build -L --no-link '.#packages.${{ matrix.arch.nix }}.intellij-scala-runners'
 
       - name: Build runner
         run: |-
-          nix build -L --no-link '.#packages.${{ matrix.arch.nix }}.runnerJre'
+          nix build -L --no-link '.#packages.${{ matrix.arch.nix }}.runner-jre'
 
       - name: Cache runner
         env:
-          NIX_OUTPUT: .#packages.${{ matrix.arch.nix }}.runnerJre
+          NIX_OUTPUT: .#packages.${{ matrix.arch.nix }}.runner-jre
         run: |
           nix store sign "${NIX_OUTPUT}" -v -r -k ~/.secrets/nix-cache-private-key
           nix copy -v "${NIX_OUTPUT}" --to s3://nixed/cache
 
-      - name: Cache intellijScalaRunners
+      - name: Cache intellij-scala-runners
         env:
-          NIX_OUTPUT: .#packages.${{ matrix.arch.nix }}.intellijScalaRunners
+          NIX_OUTPUT: .#packages.${{ matrix.arch.nix }}.intellij-scala-runners
         run: |
           nix store sign "${NIX_OUTPUT}" -v -r -k ~/.secrets/nix-cache-private-key
           nix copy -v "${NIX_OUTPUT}" --to s3://nixed/cache
@@ -65,7 +65,7 @@ jobs:
       - name: Build container images
         if: ${{ matrix.arch.image }}
         run: |-
-          nix build -L '.#packages.${{ matrix.arch.nix }}.serverImage' 
+          nix build -L '.#packages.${{ matrix.arch.nix }}.server-image' 
 
       - name: Login to Amazon ECR
         uses: ./.github/actions/login-to-public-ecr
@@ -82,10 +82,13 @@ jobs:
         shell: nix develop -v -c bash {0}
         run: |-
           IMAGE_TAG="${RELEASE_VERSION}-${IMAGE_ARCH}"
+          IMAGE_TARGET="${IMAGE_REPOSITORY}"/toothpick-server:"${IMAGE_TAG}"
           
           skopeo --insecure-policy copy \
-            docker-archive:./result \
-            docker://"${IMAGE_REPOSITORY}"/toothpick-server:"${IMAGE_TAG}"
+            nix:./result \
+            docker-daemon:"${IMAGE_TARGET}"
+
+          docker push "${IMAGE_TARGET}"
 
   push-manifest:
     name: Push multi-arch manifest

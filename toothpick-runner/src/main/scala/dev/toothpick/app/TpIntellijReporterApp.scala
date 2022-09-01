@@ -28,7 +28,7 @@ object TpIntellijReporterApp extends zio.App {
   )
 
   object AppConfig {
-    //noinspection TypeAnnotation
+    // noinspection TypeAnnotation
     implicit lazy val configReader = {
       import dev.chopsticks.util.config.PureconfigConverters._
       implicit val hint: ProductHint[AppConfig] = ProductHint[AppConfig](allowUnknownKeys = true)

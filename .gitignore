@@ -6,6 +6,6 @@ target
 /.vscode
 /test-console.sh
 /.metals
-/result
+/result*
 /.dev-sdks
 .bloop

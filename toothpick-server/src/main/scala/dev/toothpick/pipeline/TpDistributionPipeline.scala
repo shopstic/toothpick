@@ -195,15 +195,20 @@ object TpDistributionPipeline {
     }
   }
 
-  def live: URLayer[IzLogging with AkkaEnv with TpState with DstreamMaster[
-    TpWorkerDistributionContext,
-    TpWorkerDistribution,
-    TpWorkerReport,
-    TpWorkerDistributionResult
-  ] with DstreamServerHandler[TpWorkerDistribution, TpWorkerReport] with MeasuredLogging with DstreamServer[
-    TpWorkerDistribution,
-    TpWorkerReport
-  ], TpDistributionPipeline] = {
+  def live: URLayer[
+    IzLogging with AkkaEnv with TpState
+      with DstreamMaster[
+        TpWorkerDistributionContext,
+        TpWorkerDistribution,
+        TpWorkerReport,
+        TpWorkerDistributionResult
+      ] with DstreamServerHandler[TpWorkerDistribution, TpWorkerReport] with MeasuredLogging
+      with DstreamServer[
+        TpWorkerDistribution,
+        TpWorkerReport
+      ],
+    TpDistributionPipeline
+  ] = {
     ZRunnable(run _).toLayer[Service](fn => (config: TpWorkerDistributionConfig) => fn(config))
   }
 }

@@ -24,7 +24,7 @@ object TpIntellijServiceMessageParserSpec extends DefaultRunnableSpec {
     }
   }
 
-  //noinspection TypeAnnotation
+  // noinspection TypeAnnotation
   override def spec = suite("TpTeamCityServiceMessageParserSpec")(
     parseAndCompareFixture(1)
   )

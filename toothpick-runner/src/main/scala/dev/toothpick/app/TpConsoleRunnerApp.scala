@@ -29,7 +29,7 @@ object TpConsoleRunnerApp extends zio.App {
   )
 
   object AppConfig {
-    //noinspection TypeAnnotation
+    // noinspection TypeAnnotation
     implicit lazy val configReader = {
       import dev.chopsticks.util.config.PureconfigConverters._
       ConfigReader[AppConfig]
@@ -53,11 +53,11 @@ object TpConsoleRunnerApp extends zio.App {
              |--------------------------------------------------------------------------------------------------------------
              |The following ${failedCount} test${if (failedCount > 1) "s" else ""} failed:
              |${failures.zipWithIndex.map { case (report, index) =>
-            hierarchy.nodeMap(report.nodeId) match {
-              case test: TpTest => s"  ${index + 1}. ${test.fullName}"
-              case _ => ???
-            }
-          }.mkString("\n")}
+              hierarchy.nodeMap(report.nodeId) match {
+                case test: TpTest => s"  ${index + 1}. ${test.fullName}"
+                case _ => ???
+              }
+            }.mkString("\n")}
              |--------------------------------------------------------------------------------------------------------------
              |Use this env variable to replay the report in Intellij:
              | 

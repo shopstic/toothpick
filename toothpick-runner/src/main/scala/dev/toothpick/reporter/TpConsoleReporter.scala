@@ -54,7 +54,8 @@ object TpConsoleReporter {
 
             case line: TestOutputLine =>
               state.copy(outputs =
-                state.outputs.updated(line.nodeId, state.outputs.getOrElse(line.nodeId, Chunk.empty) :+ line))
+                state.outputs.updated(line.nodeId, state.outputs.getOrElse(line.nodeId, Chunk.empty) :+ line)
+              )
           }
         }
         .aggregateAsyncWithin(ZTransducer.last, Schedule.fixed(1.second))

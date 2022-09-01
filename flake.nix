@@ -35,32 +35,34 @@
             };
           };
 
-          toothpickDeps = pkgs.callPackage ./nix/deps.nix {
+          toothpick-deps = pkgs.callPackage ./nix/deps.nix {
             inherit sbt jdk;
           };
 
           toothpick = pkgs.callPackage ./nix/toothpick.nix {
-            inherit sbt jdk toothpickDeps;
+            inherit sbt jdk toothpick-deps;
           };
 
-          toothpickServerImage = pkgs.callPackage ./nix/server-image.nix
+          toothpick-server-image = pkgs.callPackage ./nix/server-image.nix
             {
-              toothpickServer = toothpick.server;
+              inherit toothpick;
               inherit fdbLib;
+              inherit (hotPotPkgs)
+                nix2container;
               jre = jre;
             };
 
-          toothpickRunnerJre = pkgs.callPackage ./nix/runner-jre.nix {
+          toothpick-runner-jre = pkgs.callPackage ./nix/runner-jre.nix {
             toothpickRunnerBin = "${toothpick}/bin/toothpick-runner";
             jre = jre;
           };
 
-          toothpickRunnerJreDev = pkgs.callPackage ./nix/runner-jre.nix {
+          toothpick-runner-jre-dev = pkgs.callPackage ./nix/runner-jre.nix {
             jre = jre;
           };
 
           jdkPrefix = "toothpick-";
-          updateIntellij = pkgs.writeShellScript "update-intellij" ''
+          update-intellij = pkgs.writeShellScript "update-intellij" ''
             set -euo pipefail
 
             THIS_PATH=$(realpath .)
@@ -78,14 +80,14 @@
             done
           '';
 
-          intellijScalaRunners = pkgs.callPackage ./nix/intellij-scala-runners.nix { };
-          devSdks = pkgs.linkFarm "dev-sdks" [
+          intellij-scala-runners = pkgs.callPackage ./nix/intellij-scala-runners.nix { };
+          dev-sdks = pkgs.linkFarm "dev-sdks" [
             { name = "compile-jdk"; path = compileJdk; }
-            { name = "runner-dev-jdk"; path = toothpickRunnerJreDev; }
-            { name = "update-intellij"; path = updateIntellij; }
-            { name = "intellij-scala-runners"; path = intellijScalaRunners; }
+            { name = "runner-dev-jdk"; path = toothpick-runner-jre-dev; }
+            { name = "update-intellij"; path = update-intellij; }
+            { name = "intellij-scala-runners"; path = intellij-scala-runners; }
           ];
-          vscodeSettings = pkgs.writeTextFile {
+          vscode-settings = pkgs.writeTextFile {
             name = "vscode-settings.json";
             text = builtins.toJSON {
               "files.watcherExclude" = {
@@ -99,18 +101,19 @@
           };
           devShell = pkgs.mkShellNoCC {
             shellHook = ''
-              ln -Tfs ${devSdks} ./.dev-sdks
-              cat ${vscodeSettings} > ./.vscode/settings.json
+              ln -Tfs ${dev-sdks} ./.dev-sdks
+              cat ${vscode-settings} > ./.vscode/settings.json
             '';
             buildInputs = toothpick.buildInputs ++ builtins.attrValues {
               inherit (pkgs)
-                skopeo
+                # skopeo
                 yq-go
                 awscli2
                 kubernetes-helm
                 ;
               inherit (hotPotPkgs)
                 manifest-tool
+                skopeo-nix2container
                 ;
             };
           };
@@ -119,14 +122,13 @@
           inherit devShell;
           defaultPackage = toothpick;
           packages = {
-            inherit intellijScalaRunners;
-            deps = toothpickDeps;
+            inherit intellij-scala-runners;
             devEnv = devShell.inputDerivation;
+            deps = toothpick-deps;
             server = toothpick.server;
-            dockerServer = toothpick.dockerServer;
-            runnerJre = toothpickRunnerJre;
+            runner-jre = toothpick-runner-jre;
           } // (pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
-            serverImage = toothpickServerImage;
+            server-image = toothpick-server-image;
           });
         }
       );

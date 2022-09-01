@@ -21,7 +21,7 @@ final case class PrometheusMetricServerConfig(
 )
 
 object PrometheusMetricServerConfig {
-  //noinspection TypeAnnotation
+  // noinspection TypeAnnotation
   implicit val configConvert = {
     import dev.chopsticks.util.config.PureconfigConverters._
     ConfigConvert[PrometheusMetricServerConfig]

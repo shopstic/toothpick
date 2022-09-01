@@ -374,10 +374,11 @@ object TpExecutionPipeline {
   def get: URIO[TpExecutionPipeline, Service] = ZIO.access[TpExecutionPipeline](_.get)
 
   def live: URLayer[
-    AkkaEnv with Blocking with TpState with IzLogging with Clock with DstreamWorker[
-      TpWorkerDistribution,
-      TpWorkerReport
-    ],
+    AkkaEnv with Blocking with TpState with IzLogging with Clock
+      with DstreamWorker[
+        TpWorkerDistribution,
+        TpWorkerReport
+      ],
     TpExecutionPipeline
   ] = {
     val runnable = ZRunnable(runWorkers _)
