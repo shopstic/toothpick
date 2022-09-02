@@ -3,6 +3,7 @@
 , jdk
 , sbt
 , rsync
+, tree
 , runCommand
 , makeWrapper
 , toothpick-deps
@@ -30,12 +31,12 @@ let
       jdk
       sbt
       rsync
+      tree
       makeWrapper
     ];
 
     configurePhase = ''
-      cp -R "${toothpick-deps}/cache" "$TMPDIR/"
-      ls -la "$TMPDIR/cache"
+      cp -as "${toothpick-deps}/cache/" "$TMPDIR/"
 
       export XDG_CACHE_HOME="$TMPDIR/cache"
       chmod -R +w "$XDG_CACHE_HOME"
@@ -46,9 +47,9 @@ let
       export SBT_OPTS="-Dsbt.global.base=$XDG_CACHE_HOME/sbt -Dsbt.ivy.home=$XDG_CACHE_HOME/ivy -Xmx4g -Xss6m"
       echo "SBT_OPTS=$SBT_OPTS"
 
-      trap "sbt --java-client shutdown" EXIT
-
       sed -i '/project.git/s/.*/project.git = false/' ./.scalafmt.conf
+
+      trap "sbt --java-client shutdown" EXIT
 
       sbt --java-client "$(cat << EOF
 ;cq
@@ -68,7 +69,7 @@ EOF
 
     installPhase = ''
       sbt --java-client ";runner / stage;server / Docker / stage"
-      
+
       mkdir -p $out
       rsync -avrx --exclude '*.bat' ./toothpick-runner/target/universal/stage/ $out/
 

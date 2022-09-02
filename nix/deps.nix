@@ -34,10 +34,14 @@ stdenv.mkDerivation {
 
     export SBT_OPTS="-Dsbt.global.base=$XDG_CACHE_HOME/sbt -Dsbt.ivy.home=$XDG_CACHE_HOME/ivy"
     echo "SBT_OPTS=$SBT_OPTS"
+  
+    sed -i '/project.git/s/.*/project.git = false/' ./.scalafmt.conf
 
     mkdir -p ./toothpick-api/src/main/scala
     echo "object Dummy {}" > ./toothpick-api/src/main/scala/Dummy.scala
 
     sbt dependencyList cq protocExecutable compile
+
+    find $out -type f -name "*.lock" -exec rm -f {} \;
   '';
 }
