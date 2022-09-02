@@ -50,14 +50,16 @@ let
 
       sed -i '/project.git/s/.*/project.git = false/' ./.scalafmt.conf
 
-      sbt --java-client cq < <(echo q)
-      sbt --java-client 'set server / dockerApiVersion := Some(com.typesafe.sbt.packager.docker.DockerApiVersion(1, 41))'
-      sbt --java-client 'set server / dockerVersion := com.typesafe.sbt.packager.docker.DockerVersion.parse("20.10.10")'
+      sbt --java-client "$(cat << EOF
+;cq
+;set server / dockerApiVersion := Some(com.typesafe.sbt.packager.docker.DockerApiVersion(1, 41))
+;set server / dockerVersion := com.typesafe.sbt.packager.docker.DockerVersion.parse("20.10.10")
+EOF
+)"
     '';
 
     buildPhase = ''
-      sbt --java-client compile
-      sbt --java-client Test / compile
+      sbt --java-client ";compile;Test / compile"
     '';
 
     checkPhase = ''
@@ -65,12 +67,11 @@ let
     '';
 
     installPhase = ''
-      sbt --java-client runner / stage
+      sbt --java-client ";runner / stage;server / Docker / stage"
+      
       mkdir -p $out
       rsync -avrx --exclude '*.bat' ./toothpick-runner/target/universal/stage/ $out/
 
-      sbt --java-client server / Docker / stage
-      
       mkdir -p $server
       rsync -avrx --exclude '*.bat' ./toothpick-server/target/docker/stage/4/opt/docker/ $server/
       rsync -avrx --exclude '*.bat' ./toothpick-server/target/docker/stage/2/opt/docker/ $serverDeps/

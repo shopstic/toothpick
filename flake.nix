@@ -5,16 +5,17 @@
     hotPot.url = "github:shopstic/nix-hot-pot";
     nixpkgs.follows = "hotPot/nixpkgs";
     flakeUtils.follows = "hotPot/flakeUtils";
+    nix2containerPkg.follows = "hotPot/nix2containerPkg";
     fdb.url = "github:shopstic/nix-fdb/7.1.11";
   };
 
-  outputs = { self, nixpkgs, flakeUtils, fdb, hotPot }:
+  outputs = { self, nixpkgs, flakeUtils, fdb, hotPot, nix2containerPkg }:
     flakeUtils.lib.eachSystem [ "aarch64-darwin" "x86_64-linux" "aarch64-linux" ]
       (system:
         let
           pkgs = import nixpkgs { inherit system; };
           hotPotPkgs = hotPot.packages.${system};
-
+          nix2container = nix2containerPkg.packages.${system}.nix2container;
           fdbLib = fdb.packages.${system}.fdb_7.lib;
           jdkArgs = [
             "--set DYLD_LIBRARY_PATH ${fdbLib}"
@@ -25,10 +26,7 @@
           jdk = hotPot.packages.${system}.jdk17;
           jre = hotPot.packages.${system}.jre17;
 
-          compileJdk = pkgs.callPackage hotPot.lib.wrapJdk {
-            inherit jdk;
-            args = pkgs.lib.concatStringsSep " " (jdkArgs ++ [ ''--run "if [[ -f ./.env ]]; then source ./.env; fi"'' ]);
-          };
+          compileJdk = jdk;
           sbt = pkgs.sbt.override {
             jre = {
               home = compileJdk;
@@ -45,20 +43,16 @@
 
           toothpick-server-image = pkgs.callPackage ./nix/server-image.nix
             {
-              inherit toothpick;
-              inherit fdbLib;
-              inherit (hotPotPkgs)
-                nix2container;
-              jre = jre;
+              inherit toothpick fdbLib nix2container jre;
             };
 
           toothpick-runner-jre = pkgs.callPackage ./nix/runner-jre.nix {
+            inherit jre;
             toothpickRunnerBin = "${toothpick}/bin/toothpick-runner";
-            jre = jre;
           };
 
           toothpick-runner-jre-dev = pkgs.callPackage ./nix/runner-jre.nix {
-            jre = jre;
+            inherit jre;
           };
 
           jdkPrefix = "toothpick-";
@@ -103,6 +97,15 @@
             shellHook = ''
               ln -Tfs ${dev-sdks} ./.dev-sdks
               cat ${vscode-settings} > ./.vscode/settings.json
+
+              export XDG_CACHE_HOME=''${XDG_CACHE_HOME:-"$HOME/.cache"}
+              export PROTOC_CACHE="$XDG_CACHE_HOME/protoc_cache"
+              export COURSIER_CACHE="$XDG_CACHE_HOME/coursier"
+              export SBT_OPTS="-Dsbt.global.base=$XDG_CACHE_HOME/sbt -Dsbt.ivy.home=$XDG_CACHE_HOME/ivy -Xmx4g -Xss6m"
+
+              if [[ -f ./.env ]]; then
+                source ./.env
+              fi
             '';
             buildInputs = toothpick.buildInputs ++ builtins.attrValues {
               inherit (pkgs)
