@@ -10,7 +10,6 @@
 , toothpick
 , fdbLib
 , dumb-init
-, docker-client
 , prom2json
 , curl
 , bash
@@ -18,6 +17,7 @@
 , jq
 , gawk
 , gnugrep
+, docker
 }:
 let
   name = "toothpick-server";
@@ -30,6 +30,11 @@ let
   #       "sha256-jkkPmXnYVU0LB+KQv35oCe5kKs6KWDEDmTXw4/yx8nU=";
   # };
 
+  docker-slim = docker.override {
+    buildxSupport = false;
+    composeSupport = false;
+  };
+
   javaSecurityOverrides = writeTextFile {
     name = "java.security.overrides";
     text = ''
@@ -38,8 +43,8 @@ let
     '';
   };
 
-  entrypoint = writeShellScript "entrypoint" ''
-    exec dumb-init -- toothpick-server \
+  entrypoint = writeShellScript "entrypoint.sh" ''
+    toothpick-server \
       -J-Djava.security.properties="${javaSecurityOverrides}" \
       -J-DFDB_LIBRARY_PATH_FDB_C="${fdbLib}"/libfdb_c.so \
       -J-DFDB_LIBRARY_PATH_FDB_JAVA="${fdbLib}"/libfdb_java.so \
@@ -48,7 +53,7 @@ let
 
   prom2jq = writeShellScriptBin "prom2jq" ''
     METRICS_URI=''${1:?"Metrics URI is required"}
-    ${curl}/bin/curl -sf "''${METRICS_URI}" | ${prom2json}/bin/prom2json | ${jq}/bin/jq "''${@:2}"
+    curl -sf "''${METRICS_URI}" | prom2json | jq "''${@:2}"
   '';
 
   app = buildEnv {
@@ -64,7 +69,9 @@ let
     name = "nix-bin";
     pathsToLink = [ "/bin" ];
     paths = [
-      docker-client
+      curl
+      prom2json
+      jq
       dumb-init
       jre
       prom2jq
@@ -72,6 +79,7 @@ let
       coreutils
       gawk
       gnugrep
+      docker-slim
     ];
   };
   image =
@@ -91,7 +99,7 @@ let
             "TOOTHPICK_SERVER_APP_LIB_DIR=/lib"
             "FDB_NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY=${fdbLib}"
           ];
-          entrypoint = [ entrypoint ];
+          entrypoint = [ "dumb-init" "--" entrypoint ];
         };
       };
 in
