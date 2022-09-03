@@ -18,6 +18,7 @@
 , gawk
 , gnugrep
 , docker
+, ps
 }:
 let
   name = "toothpick-server";
@@ -34,6 +35,9 @@ let
     buildxSupport = false;
     composeSupport = false;
   };
+
+  shadow = nonRootShadowSetup { inherit user; uid = 1001; shellBin = "${bash}/bin/bash"; };
+  home-dir = runCommand "home-dir" { } ''mkdir -p $out/home/${user}'';
 
   javaSecurityOverrides = writeTextFile {
     name = "java.security.overrides";
@@ -80,6 +84,7 @@ let
       gawk
       gnugrep
       docker-slim
+      ps
       entrypoint
     ];
   };
@@ -89,8 +94,15 @@ let
         inherit name;
         tag = toothpick.version;
         # fromImage = base-image;
-        copyToRoot = [ nix-bin app ];
-        maxLayers = 80;
+        copyToRoot = [ nix-bin shadow home-dir app ];
+        maxLayers = 90;
+        perms = [
+          {
+            path = home-dir;
+            regex = "/home/${user}$";
+            mode = "0777";
+          }
+        ];
         config = {
           volumes = {
             "/tmp" = { };

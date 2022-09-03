@@ -113,6 +113,7 @@
                 yq-go
                 awscli2
                 kubernetes-helm
+                ps
                 ;
               inherit (hotPotPkgs)
                 manifest-tool
