@@ -43,7 +43,7 @@ let
     '';
   };
 
-  entrypoint = writeShellScript "entrypoint.sh" ''
+  entrypoint = writeShellScriptBin "entrypoint.sh" ''
     toothpick-server \
       -J-Djava.security.properties="${javaSecurityOverrides}" \
       -J-DFDB_LIBRARY_PATH_FDB_C="${fdbLib}"/libfdb_c.so \
@@ -80,6 +80,7 @@ let
       gawk
       gnugrep
       docker-slim
+      entrypoint
     ];
   };
   image =
@@ -99,7 +100,7 @@ let
             "TOOTHPICK_SERVER_APP_LIB_DIR=/lib"
             "FDB_NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY=${fdbLib}"
           ];
-          entrypoint = [ "dumb-init" "--" entrypoint ];
+          entrypoint = [ "dumb-init" "--" "entrypoint.sh" ];
         };
       };
 in
