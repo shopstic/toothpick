@@ -5,6 +5,7 @@
 , writeShellScript
 , writeShellScriptBin
 , runCommand
+, nonRootShadowSetup
 , nix2container
 , jre
 , toothpick
@@ -36,6 +37,7 @@ let
     composeSupport = false;
   };
 
+  user = "app";
   shadow = nonRootShadowSetup { inherit user; uid = 1001; shellBin = "${bash}/bin/bash"; };
   home-dir = runCommand "home-dir" { } ''mkdir -p $out/home/${user}'';
 

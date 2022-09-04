@@ -16,6 +16,8 @@
           pkgs = import nixpkgs { inherit system; };
           hotPotPkgs = hotPot.packages.${system};
           nix2container = nix2containerPkg.packages.${system}.nix2container;
+          writeTextFiles = pkgs.callPackage hotPot.lib.writeTextFiles { };
+          nonRootShadowSetup = pkgs.callPackage hotPot.lib.nonRootShadowSetup { inherit writeTextFiles; };
           fdbLib = fdb.packages.${system}.fdb_7.lib;
           jdkArgs = [
             "--set DYLD_LIBRARY_PATH ${fdbLib}"
@@ -43,7 +45,7 @@
 
           toothpick-server-image = pkgs.callPackage ./nix/server-image.nix
             {
-              inherit toothpick fdbLib nix2container jre;
+              inherit nonRootShadowSetup toothpick fdbLib nix2container jre;
             };
 
           toothpick-runner-jre = pkgs.callPackage ./nix/runner-jre.nix {
