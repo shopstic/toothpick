@@ -13,28 +13,19 @@
 , dumb-init
 , prom2json
 , curl
-, bash
-, coreutils
 , jq
-, gawk
-, gnugrep
-, docker
-, ps
+, bash
 }:
 let
   name = "toothpick-server";
-  # base-image = nix2container.pullImage {
-  #   imageName = "docker.io/library/ubuntu";
-  #   imageDigest = "sha256:34fea4f31bf187bc915536831fd0afc9d214755bf700b5cdb1336c82516d154e";
-  #   sha256 =
-  #     if stdenv.isx86_64 then
-  #       "sha256-js71udw5wijNGx+U7xekS3y9tUvFAdJqQMoA9lOTpr8=" else
-  #       "sha256-jkkPmXnYVU0LB+KQv35oCe5kKs6KWDEDmTXw4/yx8nU=";
-  # };
 
-  docker-slim = docker.override {
-    buildxSupport = false;
-    composeSupport = false;
+  base-image = nix2container.pullImage {
+    imageName = "docker.io/docker";
+    imageDigest = "sha256:79f5cf744ab66c48ff532b8dea2662dc90db30faded68ff7b33ce7109578ca7d";
+    sha256 =
+      if stdenv.isx86_64 then
+        "sha256-Rg89olBJl5M3xxFBL51SbP3KPWZEH6uQjEfuOZOPK50=" else
+        "sha256-4W4jG5ehcMvCG2vpqDNUSAEoU9/v2NsWYewPw44JYgo=";
   };
 
   user = "app";
@@ -74,30 +65,29 @@ let
   nix-bin = buildEnv {
     name = "nix-bin";
     pathsToLink = [ "/bin" ];
+    postBuild = ''
+      mv $out/bin $out/nix-bin
+    '';
     paths = [
+      bash
       curl
       prom2json
       jq
       dumb-init
       jre
       prom2jq
-      bash
-      coreutils
-      gawk
-      gnugrep
-      docker-slim
-      ps
       entrypoint
     ];
   };
+
   image =
     nix2container.buildImage
       {
         inherit name;
         tag = toothpick.version;
-        # fromImage = base-image;
+        fromImage = base-image;
         copyToRoot = [ nix-bin shadow home-dir app ];
-        maxLayers = 90;
+        maxLayers = 80;
         perms = [
           {
             path = home-dir;
@@ -110,7 +100,7 @@ let
             "/tmp" = { };
           };
           env = [
-            "PATH=/bin"
+            "PATH=/nix-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             "TOOTHPICK_SERVER_APP_LIB_DIR=/lib"
             "FDB_NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY=${fdbLib}"
           ];
