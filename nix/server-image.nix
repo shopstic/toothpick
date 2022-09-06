@@ -12,6 +12,7 @@
 , fdbLib
 , dumb-init
 , prom2json
+, grpc-health-probe
 , curl
 , jq
 , bash
@@ -69,13 +70,14 @@ let
       mv $out/bin $out/nix-bin
     '';
     paths = [
+      dumb-init
       bash
       curl
+      prom2jq
       prom2json
       jq
-      dumb-init
       jre
-      prom2jq
+      grpc-health-probe
       entrypoint
     ];
   };

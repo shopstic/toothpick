@@ -46,6 +46,8 @@
           toothpick-server-image = pkgs.callPackage ./nix/server-image.nix
             {
               inherit nonRootShadowSetup toothpick fdbLib nix2container jre;
+              inherit (hotPotPkgs)
+                grpc-health-probe;
             };
 
           toothpick-runner-jre = pkgs.callPackage ./nix/runner-jre.nix {
