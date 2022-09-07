@@ -20,8 +20,7 @@ import scala.collection.immutable.ListMap
 final case class TpWorkerAppConfig(
   db: TpDbConfig,
   prometheusMetricServer: PrometheusMetricServerConfig,
-  execution: TestExecutionConfig,
-
+  execution: TestExecutionConfig
 )
 
 object TpWorkerApp extends ZAkkaApp {
