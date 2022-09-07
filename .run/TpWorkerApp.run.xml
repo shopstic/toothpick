@@ -1,0 +1,22 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="TpWorkerApp" type="Application" factoryName="Application">
+    <option name="ALTERNATIVE_JRE_PATH" value="toothpick-compile" />
+    <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
+    <envs>
+      <env name="FDB_CLUSTER_FILE" value="$PROJECT_DIR$/local-env/env/private/cluster.file" />
+    </envs>
+    <option name="MAIN_CLASS_NAME" value="dev.toothpick.app.TpWorkerApp" />
+    <module name="toothpick.server" />
+    <option name="VM_PARAMETERS" value="-Dapp.execution.worker.parallelism.parallelism=3 -Dapp.execution.soft-ttl=10.seconds -Dapp.execution.worker.assignment-timeout=5.seconds" />
+    <extension name="coverage">
+      <pattern>
+        <option name="PATTERN" value="dev.toothpick.app.*" />
+        <option name="ENABLED" value="true" />
+      </pattern>
+    </extension>
+    <method v="2">
+      <option name="Make" enabled="true" />
+      <option name="BSP.BeforeRunTask" enabled="true" />
+    </method>
+  </configuration>
+</component>

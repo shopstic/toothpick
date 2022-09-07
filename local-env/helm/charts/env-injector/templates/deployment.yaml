@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "env-injector.fullname" . }}
+  labels:
+    {{- include "env-injector.labels" . | nindent 4 }}
+    shopstic.com/env-injector-controller: "true"
+    app.kubernetes.io/component: controller
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "env-injector.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: controller
+      shopstic.com/env-injector-controller: "true"
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "env-injector.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: controller
+        shopstic.com/env-injector-controller: "true"
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "env-injector.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: SERVER_BASE_URL
+              value: https://{{ include "env-injector.fullname" . }}.{{ .Release.Namespace }}.svc
+            - name: CERT_FILE_PATH
+              value: "/env-injector-certs/cert.pem"
+            - name: KEY_FILE_PATH
+              value: "/env-injector-certs/key.pem"
+            - name: DEFAULT_CONFIG_MAP_PREFIX
+              value: {{ .Values.mutationWebhook.defaultConfigMapPrefix | quote }}
+          volumeMounts:
+            - name: cert-secret
+              mountPath: "/env-injector-certs"
+              readOnly: true
+          ports:
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+          livenessProbe:
+            initialDelaySeconds: 1
+            periodSeconds: 5
+            httpGet:
+              scheme: HTTPS
+              path: /healthz
+              port: https
+          readinessProbe:
+            initialDelaySeconds: 1
+            periodSeconds: 5
+            httpGet:
+              scheme: HTTPS
+              path: /healthz
+              port: https
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: cert-secret
+          secret:
+            secretName: {{ include "env-injector.fullname" . }}-cert
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- else }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: "app.kubernetes.io/instance"
+                      operator: In
+                      values:
+                        - {{ .Release.Name }}
+                topologyKey: "topology.kubernetes.io/zone"
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: "app.kubernetes.io/instance"
+                      operator: In
+                      values:
+                        - {{ .Release.Name }}
+                topologyKey: "kubernetes.io/hostname"
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

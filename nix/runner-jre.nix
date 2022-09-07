@@ -7,7 +7,10 @@
 let
   javaFacade = writeShellScript "toothpick-runner" ''
     set -euo pipefail
+
+    export JAVA_HOME="${jre}"
     export PATH="${lib.makeBinPath [ jre ]}:$PATH"
+
     TOOTHPICK_RUNNER_BIN=''${TOOTHPICK_RUNNER_BIN:-"${toothpickRunnerBin}"}
 
     if [[ "$TOOTHPICK_RUNNER_BIN" == "" ]]; then

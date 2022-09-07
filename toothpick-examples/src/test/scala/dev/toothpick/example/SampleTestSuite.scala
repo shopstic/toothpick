@@ -1,7 +1,7 @@
 package dev.toothpick.example
 
 import org.scalatest.matchers.must.Matchers._
-import org.scalatest.wordspec.{AnyWordSpecLike, AsyncWordSpecLike}
+import org.scalatest.wordspec.AsyncWordSpecLike
 
 import scala.concurrent.{blocking, Future}
 

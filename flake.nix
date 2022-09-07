@@ -6,10 +6,12 @@
     nixpkgs.follows = "hotPot/nixpkgs";
     flakeUtils.follows = "hotPot/flakeUtils";
     nix2containerPkg.follows = "hotPot/nix2containerPkg";
-    fdb.url = "github:shopstic/nix-fdb/7.1.11";
+    fdb.url = "github:shopstic/nix-fdb/7.1.21";
+    helmet.url = "github:shopstic/helmet/1.16.5";
+    jetski.url = "github:shopstic/jetski/1.1.6";
   };
 
-  outputs = { self, nixpkgs, flakeUtils, fdb, hotPot, nix2containerPkg }:
+  outputs = { self, nixpkgs, flakeUtils, fdb, hotPot, nix2containerPkg, helmet, jetski }:
     flakeUtils.lib.eachSystem [ "aarch64-darwin" "x86_64-linux" "aarch64-linux" ]
       (system:
         let
@@ -24,9 +26,17 @@
             "--set LD_LIBRARY_PATH ${fdbLib}"
             "--set JDK_JAVA_OPTIONS -DFDB_LIBRARY_PATH_FDB_JAVA=${fdbLib}/libfdb_java.${if pkgs.stdenv.isDarwin then "jnilib" else "so"}"
           ];
-
-          jdk = hotPot.packages.${system}.jdk17;
-          jre = hotPot.packages.${system}.jre17;
+          jreArgs = [
+            ''--run "if [[ -f ./.env ]]; then source ./.env; elif [[ -f ../.env ]]; then source ../.env; fi"''
+          ];
+          jdk = pkgs.callPackage hotPot.lib.wrapJdk {
+            jdk = hotPot.packages.${system}.jdk17;
+            args = pkgs.lib.concatStringsSep " " (jdkArgs ++ jreArgs);
+          };
+          jre = pkgs.callPackage hotPot.lib.wrapJdk {
+            jdk = hotPot.packages.${system}.jre17;
+            args = pkgs.lib.concatStringsSep " " jreArgs;
+          };
 
           compileJdk = jdk;
           sbt = pkgs.sbt.override {
@@ -85,9 +95,17 @@
             { name = "update-intellij"; path = update-intellij; }
             { name = "intellij-scala-runners"; path = intellij-scala-runners; }
           ];
+          denoBin = hotPotPkgs.deno;
           vscode-settings = pkgs.writeTextFile {
             name = "vscode-settings.json";
             text = builtins.toJSON {
+              "deno.enable" = true;
+              "deno.lint" = true;
+              "deno.path" = denoBin + "/bin/deno";
+              "[typescript]" = {
+                "editor.defaultFormatter" = "denoland.vscode-deno";
+                "editor.formatOnSave" = true;
+              };
               "files.watcherExclude" = {
                 "**/target" = true;
               };
@@ -101,27 +119,27 @@
             shellHook = ''
               ln -Tfs ${dev-sdks} ./.dev-sdks
               cat ${vscode-settings} > ./.vscode/settings.json
-
-              export XDG_CACHE_HOME=''${XDG_CACHE_HOME:-"$HOME/.cache"}
-              export PROTOC_CACHE="$XDG_CACHE_HOME/protoc_cache"
-              export COURSIER_CACHE="$XDG_CACHE_HOME/coursier"
-              export SBT_OPTS="-Dsbt.global.base=$XDG_CACHE_HOME/sbt -Dsbt.ivy.home=$XDG_CACHE_HOME/ivy -Xmx4g -Xss6m"
-
               if [[ -f ./.env ]]; then
                 source ./.env
               fi
             '';
-            buildInputs = toothpick.buildInputs ++ builtins.attrValues {
+            buildInputs = toothpick.buildInputs ++ [
+              denoBin
+              helmet.defaultPackage.${system}
+              jetski.defaultPackage.${system}
+            ] ++ builtins.attrValues {
               inherit (pkgs)
                 # skopeo
                 yq-go
                 awscli2
                 kubernetes-helm
                 ps
+                amazon-ecr-credential-helper
                 ;
               inherit (hotPotPkgs)
                 manifest-tool
                 skopeo-nix2container
+                deno
                 ;
             };
           };

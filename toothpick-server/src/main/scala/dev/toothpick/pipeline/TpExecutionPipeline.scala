@@ -1,5 +1,6 @@
 package dev.toothpick.pipeline
 
+import akka.grpc.GrpcClientSettings
 import akka.stream.scaladsl.Source
 import akka.util.Timeout
 import com.apple.foundationdb.tuple.Versionstamp
@@ -15,24 +16,58 @@ import dev.toothpick.proto.dstream._
 import dev.toothpick.state.TpState
 import dev.toothpick.state.TpStateDef.RunEventKey
 import eu.timepit.refined.auto._
+import eu.timepit.refined.types.numeric.PosInt
 import eu.timepit.refined.types.string.NonEmptyString
+import pureconfig.generic.FieldCoproductHint
 import zio.Schedule.{Decision, StepFunction}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.process.{Command, CommandError}
-import zio.stm.{STM, TMap, TPromise, TQueue}
+import zio.stm.{STM, TMap, TPromise, TQueue, TRef}
 import zio.stream.ZStream
-import zio.{RIO, Schedule, Task, URIO, URLayer, ZIO}
+import zio.{RIO, Schedule, Task, UIO, URIO, URLayer, ZIO}
 
 import java.time.{Instant, OffsetDateTime}
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContextExecutor, Future}
+import scala.concurrent.{ExecutionContextExecutor, Future, TimeoutException}
 import scala.jdk.DurationConverters.ScalaDurationOps
 import scala.util.control.NoStackTrace
 
 object TpExecutionPipeline {
+  sealed trait TestExecutionWorkerParallelism {
+    def parallelism: PosInt
+  }
+
+  object TestExecutionWorkerParallelism {
+    implicit val coproductHint: FieldCoproductHint[TestExecutionWorkerParallelism] =
+      new FieldCoproductHint[TestExecutionWorkerParallelism]("type") {
+        override def fieldValue(name: String): String =
+          name.drop("TestExecutionWorker".length).dropRight("Parallelism".length).toLowerCase
+      }
+  }
+  final case class TestExecutionWorkerStaticParallelism(parallelism: PosInt) extends TestExecutionWorkerParallelism
+  final case class TestExecutionWorkerDynamicParallelism(perWorkerCoreCount: PosInt)
+      extends TestExecutionWorkerParallelism {
+    override lazy val parallelism: PosInt = {
+      PosInt
+        .unsafeFrom(
+          math.max(1, math.floor(Runtime.getRuntime.availableProcessors().toDouble / perWorkerCoreCount.value)).toInt
+        )
+    }
+  }
+  final case class TestExecutionWorkerConfig(
+    clientSettings: GrpcClientSettings,
+    parallelism: TestExecutionWorkerParallelism,
+    assignmentTimeout: Timeout
+  ) {
+    def toDstreamWorkerConfig: DstreamWorkerConfig =
+      DstreamWorkerConfig(clientSettings, parallelism.parallelism, assignmentTimeout)
+  }
+
   final case class TestExecutionConfig(
-    worker: DstreamWorkerConfig,
+    softIdleTimeout: Option[Timeout],
+    softTtl: Option[FiniteDuration],
+    worker: TestExecutionWorkerConfig,
     retry: DstreamWorkerRetryConfig,
     imagePullIdleTimeout: Timeout,
     imagePullCacheTtl: FiniteDuration,
@@ -80,33 +115,6 @@ object TpExecutionPipeline {
     Schedule(loop(None))
   }
 
-  private def createRetrySchedule(
-    workerId: Int,
-    config: DstreamWorkerRetryConfig,
-    retryPolicy: PartialFunction[Throwable, Boolean] = DstreamWorker.defaultRetryPolicy
-  ): Schedule[IzLogging with Clock, Throwable, Unit] = {
-    val retrySchedule = Schedule
-      .identity[Throwable]
-      .whileOutput(e => retryPolicy.applyOrElse(e, (_: Any) => false))
-
-    val backoffSchedule = resetAfter(
-      Schedule.exponential(config.retryInitialDelay.toJava) ||
-        Schedule.spaced(config.retryMaxDelay.toJava),
-      config.retryResetAfter.toJava
-    )
-
-    (retrySchedule && backoffSchedule)
-      .onDecision {
-        case Decision.Done((exception, _)) =>
-          IzLogging.logger.map(_.error(s"$workerId will NOT retry $exception"))
-        case Decision.Continue((exception, _), interval, _) =>
-          IzLogging.logger.map(_.debug(
-            s"$workerId will retry ${java.time.Duration.between(OffsetDateTime.now, interval) -> "duration"} ${exception.getMessage -> "exception"}"
-          ))
-      }
-      .unit
-  }
-
   sealed abstract class ImagePullFailure(msg: String) extends RuntimeException(msg) with NoStackTrace
   final case class ImagePullCommandError(error: CommandError) extends ImagePullFailure(msg = error.toString)
   final case class ImagePullWrappedException(exception: Throwable) extends ImagePullFailure(msg = exception.getMessage)
@@ -141,11 +149,15 @@ object TpExecutionPipeline {
 
   private def runWorkers(config: TestExecutionConfig) = {
     for {
-      worker <- ZIO.access[DstreamWorker[TpWorkerDistribution, TpWorkerReport]](_.get)
+      worker <- ZIO.access[DstreamWorker[TpWorkerDistribution, TpWorkerReport, Unit]](_.get)
+      dstreamWorkerConfig = config.worker.toDstreamWorkerConfig
       tmap <- TMap.make[String, TPromise[ImagePullFailure, String]]().commit
-      ttlQueue <- TQueue.unbounded[(String, Instant)].commit
+      clock <- ZIO.access[Clock](_.get)
+      lastAssignmentTimeRef <- clock.instant.flatMap(now => TRef.make(now).commit)
+      workerRepeatIdleLocks <- TQueue.unbounded[TPromise[Nothing, Boolean]].commit
+      imagePullCacheTtlQueue <- TQueue.unbounded[(String, Instant)].commit
       _ <- zio.stream.Stream
-        .fromTQueue(ttlQueue)
+        .fromTQueue(imagePullCacheTtlQueue)
         .mapM { case (image, time) =>
           for {
             now <- zio.clock.instant
@@ -157,8 +169,142 @@ object TpExecutionPipeline {
         }
         .runDrain
         .fork
+      startTime <- clock.instant
+      zlogger <- IzLogging.zioLogger
       nodeName = sys.env.get("NODE_NAME").orElse(sys.env.get("HOSTNAME")).getOrElse("unknown")
       _ <- {
+        def lockRepetitionIfIdle(now: Instant) = {
+          config.softIdleTimeout match {
+            case Some(softIdleTimeout) =>
+              STM
+                .atomically {
+                  for {
+                    promise <- TPromise.make[Nothing, Boolean]
+                    lastAssignmentTime <- lastAssignmentTimeRef.get
+                    elapsed = java.time.Duration.between(lastAssignmentTime, now)
+                    isInIdleState = elapsed.compareTo(softIdleTimeout.duration.toJava) > 1
+                    _ <- if (isInIdleState) {
+                      for {
+                        _ <- workerRepeatIdleLocks.offer(promise)
+                        currentSize <- workerRepeatIdleLocks.size
+                        _ <- workerRepeatIdleLocks
+                          .takeAll
+                          .flatMap(STM.foreach(_)(_.succeed(false)))
+                          .when(currentSize == dstreamWorkerConfig.parallelism.value)
+                      } yield ()
+                    }
+                    else {
+                      promise.succeed(true) *> workerRepeatIdleLocks
+                        .takeAll
+                        .flatMap(STM.foreach(_)(_.succeed(true)))
+                    }
+                  } yield promise
+                }
+                .flatMap(_.await.commit)
+
+            case None =>
+              ZIO.succeed(true)
+          }
+        }
+
+        def releaseRepetitionLock(now: Instant) = {
+          config.softIdleTimeout match {
+            case Some(_) =>
+              STM
+                .atomically {
+                  for {
+                    _ <- lastAssignmentTimeRef.set(now)
+                    all <- workerRepeatIdleLocks.takeAll
+                    _ <- STM.foreach(all)(_.succeed(true))
+                  } yield ()
+                }
+            case None =>
+              ZIO.unit
+          }
+        }
+
+        def createRepeatSchedule(workerId: Int) = {
+          val softTtlSchedule = config.softTtl match {
+            case Some(softTtl) =>
+              Schedule
+                .forever
+                .mapM { (_: Any) =>
+                  for {
+                    now <- clock.instant
+                    willContinue <- lockRepetitionIfIdle(now)
+                    willRepeat <- if (!willContinue) {
+                      zlogger
+                        .warn(
+                          s"There has been no assignment past the configured ${config.softIdleTimeout}, will not repeat $workerId"
+                        )
+                        .as(false)
+                    }
+                    else {
+                      for {
+                        now <- clock.instant
+                        elapsed = java.time.Duration.between(startTime, now)
+                        continue = elapsed.compareTo(softTtl.toJava) <= 0
+                        _ <- zlogger
+                          .warn(
+                            s"The total run time $elapsed has past the configured $softTtl, will not repeat $workerId"
+                          )
+                          .when(!continue)
+                      } yield continue
+                    }
+                  } yield willRepeat
+                }
+                .whileOutput(identity)
+
+            case None =>
+              Schedule.forever.as(true)
+          }
+
+          val softIdleTimeoutSchedule = config.softIdleTimeout match {
+            case Some(softIdleTimeout) =>
+              Schedule
+                .identity[Any]
+                .mapM { (_: Any) =>
+                  for {
+                    now <- clock.instant
+                    willRepeat <- lockRepetitionIfIdle(now)
+                    _ <- zlogger
+                      .warn(
+                        s"There has been no assignment past the configured $softIdleTimeout, will not repeat $workerId"
+                      )
+                      .when(!willRepeat)
+                  } yield willRepeat
+                }
+                .whileOutput(identity)
+            case None =>
+              Schedule.forever.as(true)
+          }
+
+          (softTtlSchedule && softIdleTimeoutSchedule).map { case (a, b) => a && b }
+        }
+
+        def createRetrySchedule(workerId: Int): Schedule[IzLogging with Clock, Throwable, Unit] = {
+          val retrySchedule = Schedule
+            .identity[Throwable]
+            .whileOutput(e => DstreamWorker.defaultRetryPolicy.applyOrElse(e, (_: Any) => false))
+
+          val backoffSchedule = resetAfter(
+            Schedule.exponential(config.retry.retryInitialDelay.toJava) ||
+              Schedule.spaced(config.retry.retryMaxDelay.toJava),
+            config.retry.retryResetAfter.toJava
+          )
+
+          (createRepeatSchedule(workerId) && (retrySchedule <* backoffSchedule))
+            .onDecision {
+              case Decision.Done((canRepeat, exception)) =>
+                zlogger.error(s"$workerId will NOT retry $exception").when(canRepeat)
+              case Decision.Continue((_, exception), interval, _) =>
+                zlogger.debug(
+                  s"$workerId will retry ${java.time.Duration.between(OffsetDateTime.now, interval) -> "duration"} ${exception.getMessage -> "exception"}"
+                )
+            }
+            .unit
+        }
+
         def pullAssignmentImage[R](
           image: String,
           onStarted: RIO[R, Unit],
@@ -198,7 +344,7 @@ object TpExecutionPipeline {
                 },
                 imageId => {
                   onCompleted(TpImagePullingResult.Result.Success(TpImagePullingSuccess(imageId))) *> STM.atomically(
-                    pulledPromise.succeed(imageId) *> ttlQueue.offer(image -> Instant.now)
+                    pulledPromise.succeed(imageId) *> imagePullCacheTtlQueue.offer(image -> Instant.now)
                   )
                 }
               )
@@ -305,10 +451,12 @@ object TpExecutionPipeline {
         }
 
         worker
-          .run(config.worker) { (workerId, assignment) =>
+          .run(dstreamWorkerConfig) { (workerId, assignment) =>
             val runTestId = TpRunTestId(assignment.runId, assignment.testId)
 
             for {
+              now <- clock.instant
+              _ <- releaseRepetitionLock(now)
               state <- TpState.get
               reportsKeyspace = state.api.columnFamily(state.keyspaces.reports)
               _ <- reportsKeyspace.putTask(
@@ -364,8 +512,14 @@ object TpExecutionPipeline {
                       }
                 )
             } yield source
-          } {
-            createRetrySchedule(_, config.retry)
+          } { (workerId, task) =>
+            task
+              .repeat(createRepeatSchedule(workerId))
+              .retry(createRetrySchedule(workerId))
+              .unit
+              .catchSome {
+                case _: TimeoutException => ZIO.unit
+              }
           }
       }
     } yield ()
@@ -377,7 +531,8 @@ object TpExecutionPipeline {
     AkkaEnv with Blocking with TpState with IzLogging with Clock
       with DstreamWorker[
         TpWorkerDistribution,
-        TpWorkerReport
+        TpWorkerReport,
+        Unit
       ],
     TpExecutionPipeline
   ] = {

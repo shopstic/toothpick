@@ -6,14 +6,14 @@ import com.google.cloud.tools.jib.api.buildplan.{AbsoluteUnixPath, FileEntriesLa
 import com.google.cloud.tools.jib.event.events.TimerEvent
 import com.google.cloud.tools.jib.registry.credentials.DockerConfigCredentialRetriever
 import dev.chopsticks.fp.iz_logging.IzLogging
+import dev.chopsticks.fp.zio_ext.ZIOExtensions
 import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser.TpRunnerContext
-import enumeratum.EnumEntry
-import enumeratum.EnumEntry.Lowercase
 import eu.timepit.refined.types.numeric.PosInt
 import eu.timepit.refined.types.string.NonEmptyString
 import logstage.Level
 import pureconfig.ConfigReader
-import zio.{RIO, Task}
+import zio.clock.Clock
+import zio.{RIO, Task, ZIO}
 
 import java.nio.file.Paths
 import java.util.function.Consumer
@@ -23,16 +23,6 @@ object TpRunnerContainerizer {
     registry: NonEmptyString,
     dockerConfigFile: NonEmptyString
   )
-
-  sealed trait ContainerizerImageArch extends EnumEntry with Lowercase
-  object ContainerizerImageArch extends enumeratum.Enum[ContainerizerImageArch] {
-    // noinspection TypeAnnotation
-    val values = findValues
-    case object Auto extends ContainerizerImageArch
-    case object Amd64 extends ContainerizerImageArch
-    case object Arm64 extends ContainerizerImageArch
-
-  }
 
   final case class ContainerizerImageConfig(
     name: NonEmptyString,
@@ -55,7 +45,6 @@ object TpRunnerContainerizer {
   }
 
   final case class TpRunnerContainerizerConfig(
-    imageArch: ContainerizerImageArch,
     targetImage: ContainerizerImageConfig,
     baseImage: ContainerizerImageConfig,
     entrypointPrefix: Vector[String],
@@ -77,9 +66,10 @@ object TpRunnerContainerizer {
   def containerize(
     context: TpRunnerContext,
     containerizerConfig: TpRunnerContainerizerConfig
-  ): RIO[IzLogging, String] = {
-    IzLogging.logger.flatMap { logger =>
-      Task {
+  ): RIO[IzLogging with Clock, String] = {
+    for {
+      logger <- IzLogging.logger
+      imageRef <- ZIO.effectSuspend {
         import scala.jdk.CollectionConverters._
 
         val env = context.environment
@@ -155,33 +145,27 @@ object TpRunnerContainerizer {
 
         val baseImage = containerizerConfig.baseImage.toImage(handleEvent)
         val targetImage = containerizerConfig.targetImage.toImage(handleEvent)
-        val imageArch = containerizerConfig.imageArch match {
-          case ContainerizerImageArch.Auto =>
-            sys.props.get("os.arch") match {
-              case Some(arch) if arch == "aarch64" => "arm64"
-              case _ => "amd64"
-            }
-          case arch => arch.entryName
-        }
-
-        logger.info(s"Using $imageArch")
 
         val imagePlatforms = {
           import scala.jdk.CollectionConverters._
-          Set(new Platform(imageArch, "linux")).asJava
+          Set(new Platform("amd64", "linux"), new Platform("arm64", "linux")).asJava
         }
 
-        val containerized = Jib
-          .from(baseImage)
-          .setPlatforms(imagePlatforms)
-          .addFileEntriesLayer(jarsLayerBuilder.build())
-          .addFileEntriesLayer(classesLayerBuilder.build())
-          .addFileEntriesLayer(testClassesLayerBuilder.build())
-          .setEntrypoint(entrypoint.asJava)
-          .containerize(Containerizer.to(targetImage).addEventHandler(handleEvent))
+        Task {
+          val containerized = Jib
+            .from(baseImage)
+            .setPlatforms(imagePlatforms)
+            .addFileEntriesLayer(jarsLayerBuilder.build())
+            .addFileEntriesLayer(classesLayerBuilder.build())
+            .addFileEntriesLayer(testClassesLayerBuilder.build())
+            .setEntrypoint(entrypoint.asJava)
+            .containerize(Containerizer.to(targetImage).addEventHandler(handleEvent))
 
-        s"${containerizerConfig.targetImage.name}@${containerized.getDigest.toString}"
+          s"${containerizerConfig.targetImage.name}@${containerized.getDigest.toString}"
+        }
+          .log(s"containerize to target: $targetImage")
+
       }
-    }
+    } yield imageRef
   }
 }

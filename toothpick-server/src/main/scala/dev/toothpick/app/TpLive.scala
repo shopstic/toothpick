@@ -74,7 +74,7 @@ object TpLive {
   lazy val dstreamServer = DstreamServer.live[TpWorkerDistribution, TpWorkerReport]
   lazy val dstreamMaster =
     DstreamMaster.live[TpWorkerDistributionContext, TpWorkerDistribution, TpWorkerReport, TpWorkerDistributionResult]
-  lazy val dstreamWorker = DstreamWorker.live[TpWorkerDistribution, TpWorkerReport]
+  lazy val dstreamWorker = DstreamWorker.live[TpWorkerDistribution, TpWorkerReport, Unit]
 
   lazy val kvdbIoThreadPool = KvdbIoThreadPool.live
   lazy val kvdbSerdesThreadPool = KvdbSerdesThreadPool.fromDefaultAkkaDispatcher()

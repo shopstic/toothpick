@@ -1,11 +1,11 @@
 import sbt._
 
 object Dependencies {
-  val CHOPSTICKS_VERSION = "3.10.0+712-bbfa1c6-SNAPSHOT"
+  val CHOPSTICKS_VERSION = "3.10.0+716-7cbf1f4-SNAPSHOT"
   val ZIO_VERSION = "1.0.15"
 
   lazy val akkaGrpcRuntimeDeps = Seq(
-    "com.lightbend.akka.grpc" %% "akka-grpc-runtime" % "2.1.5"
+    "com.lightbend.akka.grpc" %% "akka-grpc-runtime" % "2.1.6"
   )
 
   lazy val betterFilesDeps = Seq(
@@ -49,8 +49,8 @@ object Dependencies {
   )
 
   lazy val jsoniterDeps = Seq(
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.17.0",
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.17.0" % "provided"
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.17.1",
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.17.1" % "provided"
   )
 
   lazy val pureconfigEnumeratumDeps = Seq(
@@ -58,7 +58,7 @@ object Dependencies {
   )
 
   lazy val quicklensDeps = Seq(
-    "com.softwaremill.quicklens" %% "quicklens" % "1.8.9"
+    "com.softwaremill.quicklens" %% "quicklens" % "1.8.10"
   )
 
   lazy val overrideDeps = Seq(

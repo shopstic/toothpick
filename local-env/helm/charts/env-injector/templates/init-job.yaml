@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "env-injector.fullname" . }}-init
+  labels:
+    {{- include "env-injector.labels" . | nindent 4 }}
+    app.kubernetes.io/component: init
+    shopstic.com/env-injector-controller: "true"
+  annotations:
+    "helm.sh/hook": "pre-install,pre-upgrade"
+    "helm.sh/hook-weight": "-98"
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "env-injector.labels" . | nindent 8 }}
+        app.kubernetes.io/component: init
+        shopstic.com/env-injector-controller: "true"
+    spec:
+      serviceAccountName: {{ include "env-injector.fullname" . }}-init
+      restartPolicy: Never
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}      
+      containers:
+        - name: init
+          image: "{{ .Values.image.repository }}-init:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          env:
+            - name: ENV_INJECTOR_INIT_NAME
+              value: {{ include "env-injector.fullname" . }}-init
+            - name: ENV_INJECTOR_NAMESPACE
+              value: {{ .Release.Namespace }}
+            - name: ENV_INJECTOR_NAME
+              value: {{ include "env-injector.fullname" . }}
+            - name: ENV_INJECTOR_SECRET_NAME
+              value: {{ include "env-injector.secretName" . }}
+          command:
+            - bash
+            - -c
+            - |
+              set -euo pipefail
+
+              export ENV_INJECTOR_MUTATING_WEBHOOK_CONFIGRATION_TEMPLATE=$(cat <<EOF
+              {{- include "env-injector.mutatingWebhookConfiguration" . | nindent 14 }}
+              EOF
+              )
+
+              exec "${ENTRYPOINT_SCRIPT:?"ENTRYPOINT_SCRIPT env var is not set"}"

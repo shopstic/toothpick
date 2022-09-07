@@ -10,3 +10,4 @@ target
 /.dev-sdks
 /.env
 .bloop
+/local-env/env/private

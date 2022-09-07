@@ -1,0 +1,97 @@
+{{- $name := include "env-injector.fullname" . -}}
+{{- $secretName := include "env-injector.secretName" . -}}
+{{- $initName := (printf "%v-%v" $name "init") -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $initName }}
+  labels:
+    {{- include "env-injector.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-install,pre-upgrade"
+    "helm.sh/hook-weight": "-99"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $initName }}
+  labels:
+    {{- include "env-injector.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-install,pre-upgrade"
+    "helm.sh/hook-weight": "-99"    
+rules:
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["mutatingwebhookconfigurations"]
+  verbs: ["create"]
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["mutatingwebhookconfigurations"]
+  resourceNames: [{{ $name | quote }}]
+  verbs: ["get", "update", "patch"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  resourceNames: [{{ .Release.Namespace | quote }}]
+  verbs: ["get"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterroles"]
+  resourceNames: [{{ $initName | quote }}]
+  verbs: ["get", "patch", "update"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterrolebindings"]
+  resourceNames: [{{ $initName | quote }}]
+  verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $initName }}
+  labels:
+    {{- include "env-injector.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-install,pre-upgrade"
+    "helm.sh/hook-weight": "-99"
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: [{{ $secretName | quote }}]
+  verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $initName }}
+  labels:
+    {{- include "env-injector.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-install,pre-upgrade"
+    "helm.sh/hook-weight": "-99"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $initName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $initName }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $initName }}
+  labels:
+    {{- include "env-injector.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": "pre-install,pre-upgrade"
+    "helm.sh/hook-weight": "-99"        
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $initName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $initName }}
+    namespace: {{ .Release.Namespace }}
