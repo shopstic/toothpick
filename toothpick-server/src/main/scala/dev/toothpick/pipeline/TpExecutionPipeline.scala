@@ -184,7 +184,7 @@ object TpExecutionPipeline {
                     elapsed = java.time.Duration.between(lastAssignmentTime, now)
                     isInIdleState = elapsed.compareTo(softIdleTimeout.duration.toJava) > 1
                     _ <- STM.succeed(println(
-                      s"lockRepetitionIfIdle now=$now lastAssignmentTime=$lastAssignmentTime elapsed=$elapsed isInIdleState=$isInIdleState"
+                      s"lockRepetitionIfIdle now=$now lastAssignmentTime=$lastAssignmentTime elapsed=$elapsed softIdleTimeout=${softIdleTimeout.duration} isInIdleState=$isInIdleState"
                     ))
                     _ <- if (isInIdleState) {
                       for {
