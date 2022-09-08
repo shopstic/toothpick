@@ -8,7 +8,6 @@ import com.google.cloud.tools.jib.registry.credentials.DockerConfigCredentialRet
 import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.fp.zio_ext.ZIOExtensions
 import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser.TpRunnerContext
-import eu.timepit.refined.types.numeric.PosInt
 import eu.timepit.refined.types.string.NonEmptyString
 import logstage.Level
 import pureconfig.ConfigReader
@@ -48,10 +47,8 @@ object TpRunnerContainerizer {
     targetImage: ContainerizerImageConfig,
     baseImage: ContainerizerImageConfig,
     entrypointPrefix: Vector[String],
-    runTimeoutSeconds: PosInt,
-    killAfterRunTimeoutSeconds: PosInt,
-    javaOptions: List[String],
-    environment: Map[String, String]
+    environment: Map[String, String],
+    javaOptions: List[String]
   )
 
   object TpRunnerContainerizerConfig {
@@ -109,17 +106,11 @@ object TpRunnerContainerizer {
         }
 
         val entrypoint = containerizerConfig.entrypointPrefix ++ Vector(
-          "timeout",
-          "--signal=15",
-          s"--kill-after=${containerizerConfig.killAfterRunTimeoutSeconds}s",
-          s"${containerizerConfig.runTimeoutSeconds}s",
           "java"
         ) ++ containerizerConfig.javaOptions ++ env.systemProperties.map(p => s"-D$p") ++ Vector(
           "-cp",
           classpathListBuilder.result().mkString(":")
         ) :+ env.runnerClass
-
-        val environment = containerizerConfig.environment.asJava
 
         def handleEvent(event: JibEvent): Unit = {
           event match {
@@ -155,15 +146,20 @@ object TpRunnerContainerizer {
         }
 
         Task {
-          val containerized = Jib
+          val builder = Jib
             .from(baseImage)
             .setPlatforms(imagePlatforms)
             .addFileEntriesLayer(jarsLayerBuilder.build())
             .addFileEntriesLayer(classesLayerBuilder.build())
             .addFileEntriesLayer(testClassesLayerBuilder.build())
             .setEntrypoint(entrypoint.asJava)
-            .setEnvironment(environment)
-            .containerize(Containerizer.to(targetImage).addEventHandler(handleEvent))
+
+          val builderWithEnvironment = if (containerizerConfig.environment.nonEmpty)
+            builder.setEnvironment(containerizerConfig.environment.asJava)
+          else builder
+
+          val containerized =
+            builderWithEnvironment.containerize(Containerizer.to(targetImage).addEventHandler(handleEvent))
 
           s"${containerizerConfig.targetImage.name}@${containerized.getDigest.toString}"
         }
