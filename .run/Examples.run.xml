@@ -7,6 +7,11 @@
       <list />
     </option>
     <option name="testKind" value="All in package" />
+    <option name="classBuf">
+      <list>
+        <option value="dev.toothpick.example.SampleTestSuite" />
+      </list>
+    </option>
     <option name="envs">
       <map>
         <entry key="TOOTHPICK_CONFIG" value="$PROJECT_DIR$/toothpick-examples/src/test/resources/.toothpick.conf" />

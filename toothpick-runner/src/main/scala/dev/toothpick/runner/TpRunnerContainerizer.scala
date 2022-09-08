@@ -50,7 +50,8 @@ object TpRunnerContainerizer {
     entrypointPrefix: Vector[String],
     runTimeoutSeconds: PosInt,
     killAfterRunTimeoutSeconds: PosInt,
-    javaOptions: List[String]
+    javaOptions: List[String],
+    environment: Map[String, String]
   )
 
   object TpRunnerContainerizerConfig {
@@ -118,6 +119,8 @@ object TpRunnerContainerizer {
           classpathListBuilder.result().mkString(":")
         ) :+ env.runnerClass
 
+        val environment = containerizerConfig.environment.asJava
+
         def handleEvent(event: JibEvent): Unit = {
           event match {
             case log: LogEvent if log.getLevel.compareTo(LogEvent.Level.PROGRESS) <= 0 =>
@@ -159,6 +162,7 @@ object TpRunnerContainerizer {
             .addFileEntriesLayer(classesLayerBuilder.build())
             .addFileEntriesLayer(testClassesLayerBuilder.build())
             .setEntrypoint(entrypoint.asJava)
+            .setEnvironment(environment)
             .containerize(Containerizer.to(targetImage).addEventHandler(handleEvent))
 
           s"${containerizerConfig.targetImage.name}@${containerized.getDigest.toString}"

@@ -1,5 +1,6 @@
 package dev.toothpick.example
 
+import org.scalatest.Succeeded
 import org.scalatest.matchers.must.Matchers._
 import org.scalatest.wordspec.AsyncWordSpecLike
 
@@ -20,6 +21,15 @@ final class SampleTestSuite extends AsyncWordSpecLike {
           (1 + 1) must not equal 3
         }
       }
+    }
+  }
+
+  "print environment" in {
+    Future {
+      sys.env.foreach { case (k, v) =>
+        println(s"ENV $k = $v")
+      }
+      Succeeded
     }
   }
 
