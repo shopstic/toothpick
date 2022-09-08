@@ -7,7 +7,7 @@
     </envs>
     <option name="MAIN_CLASS_NAME" value="dev.toothpick.app.TpWorkerApp" />
     <module name="toothpick.server" />
-    <option name="VM_PARAMETERS" value="-Dapp.execution.worker.parallelism.type=dynamic -Dapp.execution.worker.parallelism.per-worker-core-count=3" />
+    <option name="VM_PARAMETERS" value="-Dapp.execution.worker.parallelism.type=dynamic -Dapp.execution.worker.parallelism.per-worker-core-count=3 -Dapp.execution.worker.assignment-timeout=5.seconds -Dapp.execution.soft-idle-timeout=15.seconds -Dapp.execution.soft-ttl=5.minutes" />
     <extension name="coverage">
       <pattern>
         <option name="PATTERN" value="dev.toothpick.app.*" />

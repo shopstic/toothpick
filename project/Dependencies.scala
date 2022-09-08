@@ -1,8 +1,8 @@
 import sbt._
 
 object Dependencies {
-  val CHOPSTICKS_VERSION = "3.10.0+716-7cbf1f4-SNAPSHOT"
-  val ZIO_VERSION = "1.0.15"
+  val CHOPSTICKS_VERSION = "3.10.0+717-3ce5b2d-SNAPSHOT"
+  val ZIO_VERSION = "1.0.14"
 
   lazy val akkaGrpcRuntimeDeps = Seq(
     "com.lightbend.akka.grpc" %% "akka-grpc-runtime" % "2.1.6"

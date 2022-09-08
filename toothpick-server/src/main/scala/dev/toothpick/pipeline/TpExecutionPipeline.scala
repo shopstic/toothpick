@@ -23,9 +23,9 @@ import zio.Schedule.{Decision, StepFunction}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.process.{Command, CommandError}
-import zio.stm.{STM, TMap, TPromise, TQueue, TRef}
+import zio.stm._
 import zio.stream.ZStream
-import zio.{RIO, Schedule, Task, UIO, URIO, URLayer, ZIO}
+import zio.{RIO, Schedule, Task, URIO, URLayer, ZIO}
 
 import java.time.{Instant, OffsetDateTime}
 import scala.concurrent.duration._
@@ -231,26 +231,13 @@ object TpExecutionPipeline {
                 .mapM { (_: Any) =>
                   for {
                     now <- clock.instant
-                    willContinue <- lockRepetitionIfIdle(now)
-                    willRepeat <- if (!willContinue) {
-                      zlogger
-                        .warn(
-                          s"There has been no assignment past the configured ${config.softIdleTimeout}, will not repeat $workerId"
-                        )
-                        .as(false)
-                    }
-                    else {
-                      for {
-                        now <- clock.instant
-                        elapsed = java.time.Duration.between(startTime, now)
-                        continue = elapsed.compareTo(softTtl.toJava) <= 0
-                        _ <- zlogger
-                          .warn(
-                            s"The total run time $elapsed has past the configured $softTtl, will not repeat $workerId"
-                          )
-                          .when(!continue)
-                      } yield continue
-                    }
+                    elapsed = java.time.Duration.between(startTime, now)
+                    willRepeat = elapsed.compareTo(softTtl.toJava) <= 0
+                    _ <- zlogger
+                      .warn(
+                        s"The total run time $elapsed has past the configured $softTtl, will not repeat $workerId"
+                      )
+                      .when(!willRepeat)
                   } yield willRepeat
                 }
                 .whileOutput(identity)
