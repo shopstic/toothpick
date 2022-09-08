@@ -43,7 +43,7 @@ object TpWorkerApp extends ZAkkaApp {
     val tpDbConfig = typedConfig.map(cfg => Has(cfg.get.config.db))
 
     app
-      .as(ExitCode(1))
+      .as(ExitCode(0))
       .injectSome[ZAkkaAppEnv](
         typedConfig,
         promRegistry,

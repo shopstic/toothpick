@@ -213,9 +213,6 @@ object TpExecutionPipeline {
               STM
                 .atomically {
                   for {
-                    _ <- STM.succeed(println(
-                      s"releaseRepetitionLock now=$now"
-                    ))
                     _ <- lastAssignmentTimeRef.set(now)
                     all <- workerRepeatIdleLocks.takeAll
                     _ <- STM.foreach(all)(_.succeed(true))
