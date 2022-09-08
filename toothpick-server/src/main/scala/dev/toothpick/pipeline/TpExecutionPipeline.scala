@@ -183,6 +183,9 @@ object TpExecutionPipeline {
                     lastAssignmentTime <- lastAssignmentTimeRef.get
                     elapsed = java.time.Duration.between(lastAssignmentTime, now)
                     isInIdleState = elapsed.compareTo(softIdleTimeout.duration.toJava) > 1
+                    _ <- STM.succeed(println(
+                      s"lockRepetitionIfIdle now=$now lastAssignmentTime=$lastAssignmentTime elapsed=$elapsed isInIdleState=$isInIdleState"
+                    ))
                     _ <- if (isInIdleState) {
                       for {
                         _ <- workerRepeatIdleLocks.offer(promise)
@@ -213,6 +216,9 @@ object TpExecutionPipeline {
               STM
                 .atomically {
                   for {
+                    _ <- STM.succeed(println(
+                      s"releaseRepetitionLock now=$now"
+                    ))
                     _ <- lastAssignmentTimeRef.set(now)
                     all <- workerRepeatIdleLocks.takeAll
                     _ <- STM.foreach(all)(_.succeed(true))
