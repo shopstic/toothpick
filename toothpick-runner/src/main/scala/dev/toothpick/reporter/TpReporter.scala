@@ -299,7 +299,7 @@ object TpReporter {
               )
               _ <- hasFailedTestsRef.update(yes => yes || outcome.isFailure)
               _ <- maybeTestName match {
-                case Some(reportedName) if reportedName != test.name =>
+                case Some(reportedName) if reportedName != test.name && !reportedName.endsWith("!!! IGNORED !!!") =>
                   ZIO.fail(new IllegalStateException(
                     s"Reported test name doesn't match: '$reportedName' vs '${test.name}'"
                   ))
