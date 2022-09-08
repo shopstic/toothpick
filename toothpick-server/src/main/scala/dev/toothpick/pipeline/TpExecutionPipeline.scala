@@ -182,12 +182,7 @@ object TpExecutionPipeline {
                     promise <- TPromise.make[Nothing, Boolean]
                     lastAssignmentTime <- lastAssignmentTimeRef.get
                     elapsed = java.time.Duration.between(lastAssignmentTime, now)
-                    isInIdleState = elapsed.compareTo(softIdleTimeout.duration.toJava) > 1
-                    _ <- STM.succeed(println(
-                      s"lockRepetitionIfIdle now=$now lastAssignmentTime=$lastAssignmentTime elapsed=$elapsed " +
-                        s"softIdleTimeout=${softIdleTimeout.duration.toJava} " +
-                        s"compared=${elapsed.compareTo(softIdleTimeout.duration.toJava)} isInIdleState=$isInIdleState"
-                    ))
+                    isInIdleState = elapsed.compareTo(softIdleTimeout.duration.toJava) >= 0
                     _ <- if (isInIdleState) {
                       for {
                         _ <- workerRepeatIdleLocks.offer(promise)
