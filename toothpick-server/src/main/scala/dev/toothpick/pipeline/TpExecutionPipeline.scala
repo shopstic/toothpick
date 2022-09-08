@@ -223,8 +223,8 @@ object TpExecutionPipeline {
           }
         }
 
-        def createRepeatSchedule(workerId: Int) = {
-          val softTtlSchedule = config.softTtl match {
+        def createSoftTtlSchedule(workerId: Int) = {
+          config.softTtl match {
             case Some(softTtl) =>
               Schedule
                 .forever
@@ -245,28 +245,6 @@ object TpExecutionPipeline {
             case None =>
               Schedule.forever.as(true)
           }
-
-          val softIdleTimeoutSchedule = config.softIdleTimeout match {
-            case Some(softIdleTimeout) =>
-              Schedule
-                .identity[Any]
-                .mapM { (_: Any) =>
-                  for {
-                    now <- clock.instant
-                    willRepeat <- lockRepetitionIfIdle(now)
-                    _ <- zlogger
-                      .warn(
-                        s"There has been no assignment past the configured $softIdleTimeout, will not repeat $workerId"
-                      )
-                      .when(!willRepeat)
-                  } yield willRepeat
-                }
-                .whileOutput(identity)
-            case None =>
-              Schedule.forever.as(true)
-          }
-
-          (softTtlSchedule && softIdleTimeoutSchedule).map { case (a, b) => a && b }
         }
 
         def createRetrySchedule(workerId: Int): Schedule[IzLogging with Clock, Throwable, Unit] = {
@@ -280,7 +258,36 @@ object TpExecutionPipeline {
             config.retry.retryResetAfter.toJava
           )
 
-          (createRepeatSchedule(workerId) && (retrySchedule <* backoffSchedule))
+          val idleTimeoutSchedule = config.softIdleTimeout match {
+            case Some(softIdleTimeout) =>
+              Schedule
+                .identity[Throwable]
+                .mapM { (e: Throwable) =>
+                  e match {
+                    case _: TimeoutException =>
+                      for {
+                        now <- clock.instant
+                        willRepeat <- lockRepetitionIfIdle(now)
+                        _ <- zlogger
+                          .warn(
+                            s"There has been no assignment past the configured $softIdleTimeout, will not repeat $workerId"
+                          )
+                          .when(!willRepeat)
+                      } yield willRepeat
+                    case _ =>
+                      ZIO.succeed(true)
+                  }
+                }
+                .whileOutput(identity)
+            case None =>
+              Schedule.forever.as(true)
+          }
+
+          val durationBasedSchedule = (idleTimeoutSchedule && createSoftTtlSchedule(workerId)).map { case (a, b) =>
+            a && b
+          }
+
+          (durationBasedSchedule && (retrySchedule <* backoffSchedule))
             .onDecision {
               case Decision.Done((canRepeat, exception)) =>
                 zlogger.error(s"$workerId will NOT retry $exception").when(canRepeat)
@@ -500,8 +507,8 @@ object TpExecutionPipeline {
                 )
             } yield source
           } { (workerId, task) =>
-            task
-              .repeat(createRepeatSchedule(workerId))
+            (task *> clock.instant.flatMap(releaseRepetitionLock))
+              .repeat(createSoftTtlSchedule(workerId))
               .retry(createRetrySchedule(workerId))
               .unit
               .catchSome {
