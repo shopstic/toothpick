@@ -10,7 +10,12 @@ import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.fp.util.LoggedRace
 import dev.chopsticks.metric.log.MetricLogger
 import dev.toothpick.api.{TpApiServer, TpApiServerConfig, TpApiServerImpl}
-import dev.toothpick.metric.{PrometheusMetricServer, PrometheusMetricServerConfig, TpMasterMetrics}
+import dev.toothpick.metric.{
+  PrometheusMetricServer,
+  PrometheusMetricServerConfig,
+  TpMasterInformedQueueConfig,
+  TpMasterMetrics
+}
 import dev.toothpick.pipeline.TpDistributionPipeline
 import dev.toothpick.pipeline.TpDistributionPipeline.TpWorkerDistributionConfig
 import dev.toothpick.state.TpDbConfig
@@ -25,7 +30,8 @@ final case class TpMasterAppConfig(
   prometheusMetricServer: PrometheusMetricServerConfig,
   apiServer: TpApiServerConfig,
   dstreamServer: DstreamServerConfig,
-  dstreamMaster: DstreamMasterConfig
+  dstreamMaster: DstreamMasterConfig,
+  informedQueue: TpMasterInformedQueueConfig
 )
 
 object TpMasterAppConfig {

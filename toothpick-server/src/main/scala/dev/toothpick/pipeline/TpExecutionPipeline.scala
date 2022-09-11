@@ -34,6 +34,8 @@ import scala.jdk.DurationConverters.ScalaDurationOps
 import scala.util.control.NoStackTrace
 
 object TpExecutionPipeline {
+  val INTERNAL_IMAGE_REPO = "toothpick.dev/internal"
+
   sealed trait TestExecutionWorkerParallelism {
     def parallelism: PosInt
   }
@@ -72,7 +74,8 @@ object TpExecutionPipeline {
     imagePullIdleTimeout: Timeout,
     imagePullCacheTtl: FiniteDuration,
     dockerPath: NonEmptyString,
-    dockerRunArgs: Vector[NonEmptyString]
+    dockerRunArgs: Vector[NonEmptyString],
+    imageStorageCacheTtl: FiniteDuration
   )
 
   trait Service {
@@ -122,12 +125,9 @@ object TpExecutionPipeline {
   final case class ImagePullFailureWithExitCode(exitCode: Int, stderr: String)
       extends ImagePullFailure(s"exitCode=$exitCode stderr=$stderr")
 
-  private def pullImage(
-    dockerPath: NonEmptyString,
-    image: String
-  ): ZStream[Blocking with Clock, ImagePullFailure, String] = {
+  private def runOnImage(command: Command): ZStream[Blocking with Clock, ImagePullFailure, String] = {
     ZStream
-      .fromEffect(Command(dockerPath, "pull", image).run)
+      .fromEffect(command.run)
       .mapError(commandError => ImagePullCommandError(commandError))
       .flatMap { process =>
         process.stdout.linesStream
@@ -147,8 +147,68 @@ object TpExecutionPipeline {
       }
   }
 
-  private def runWorkers(config: TestExecutionConfig) = {
+  final case class StoredImageReference(repo: String, tag: Option[String], digest: Option[String])
+  private def pruneOldImages(config: TestExecutionConfig) = {
     for {
+      zlogger <- IzLogging.zioLogger
+      lines <- Command(
+        config.dockerPath,
+        "images",
+        "--digests",
+        "--format",
+        "{{.Repository}} {{.Tag}} {{.Digest}}"
+      ).lines
+      pruneOlderThan = Instant.now.minus(config.imageStorageCacheTtl.toJava)
+      toPrune <- Task {
+        lines
+          .map { line =>
+            line.split(" ").toList match {
+              case repo :: tag :: digest :: Nil =>
+                Some(StoredImageReference(
+                  repo,
+                  Option.when(tag != "<none>")(tag),
+                  Option.when(digest != "<none>")(digest)
+                ))
+              case _ =>
+                None
+            }
+          }
+          .collect { case Some(ref) => ref }
+          .filter { ref =>
+            if (ref.repo == INTERNAL_IMAGE_REPO) {
+              ref.tag match {
+                case Some(tag) =>
+                  scala.util.Try {
+                    Instant.ofEpochMilli(tag.toLong).isBefore(pruneOlderThan)
+                  }.getOrElse(true)
+                case None =>
+                  true
+              }
+            }
+            else true
+          }
+          .map { ref =>
+            s"${ref.repo}${ref.tag.fold("")(t => s":$t")}${ref.digest.fold("")(d => s"@$d")}"
+          }
+          .toList
+      }
+      _ <- Command(
+        config.dockerPath,
+        "rmi" :: toPrune: _*
+      )
+        .linesStream.foreach(line => zlogger.info(s"${line -> "stdout" -> null}"))
+        .log(s"Prune images older than ${config.imageStorageCacheTtl}")
+        .when(toPrune.nonEmpty)
+
+      _ <- Command(config.dockerPath, "image", "prune", "-f")
+        .linesStream.foreach(line => zlogger.info(s"${line -> "stdout" -> null}"))
+        .log(s"Execute: docker image prune -f")
+    } yield ()
+
+  }
+
+  private def runWorkers(config: TestExecutionConfig) = {
+    val mainTask = for {
       worker <- ZIO.access[DstreamWorker[TpWorkerDistribution, TpWorkerReport, Unit]](_.get)
       dstreamWorkerConfig = config.worker.toDstreamWorkerConfig
       tmap <- TMap.make[String, TPromise[ImagePullFailure, String]]().commit
@@ -322,7 +382,7 @@ object TpExecutionPipeline {
             }
             (pulledPromise, hasBeenPulled) = pullState
 
-            _ <- (onStarted.mapError(ImagePullWrappedException) *> pullImage(config.dockerPath, image)
+            _ <- (onStarted.mapError(ImagePullWrappedException) *> runOnImage(Command(config.dockerPath, "pull", image))
               .timeout(config.imagePullIdleTimeout.duration.toJava)
               .tap(line => onProgress(line).mapError(ImagePullWrappedException))
               .runLast
@@ -344,7 +404,20 @@ object TpExecutionPipeline {
               )
               .logResult(s"Pull $image", _.toString))
               .when(!hasBeenPulled)
+
             imageId <- pulledPromise.await.commit
+
+            _ <- runOnImage(Command(
+              config.dockerPath,
+              "tag",
+              imageId,
+              s"$INTERNAL_IMAGE_REPO:${Instant.now.toEpochMilli}"
+            ))
+              .timeout(config.imagePullIdleTimeout.duration.toJava)
+              .runLast
+              .logResult(s"Tag $image for retention", _.toString)
+              .when(!hasBeenPulled)
+
           } yield imageId
         }
 
@@ -517,6 +590,8 @@ object TpExecutionPipeline {
           }
       }
     } yield ()
+
+    mainTask *> pruneOldImages(config)
   }
 
   def get: URIO[TpExecutionPipeline, Service] = ZIO.access[TpExecutionPipeline](_.get)

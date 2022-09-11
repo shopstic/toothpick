@@ -12,6 +12,7 @@ import dev.chopsticks.dstream.metric.{
   DstreamStateMetricsManager
 }
 import dev.chopsticks.fp.akka_env.AkkaEnv
+import dev.chopsticks.fp.config.TypedConfig
 import dev.chopsticks.kvdb.util.{KvdbIoThreadPool, KvdbSerdesThreadPool}
 import dev.chopsticks.metric.log.MetricLogger
 import dev.chopsticks.metric.prom.{PromMetricRegistry, PromMetricRegistryFactory}
@@ -87,5 +88,8 @@ object TpLive {
 
   lazy val tpMasterMetricRegistry = PromMetricRegistry.live[TpMasterMetric]("tp_master")
   lazy val tpMasterMetrics = TpMasterMetrics.live
-  lazy val tpMasterInformedQueue = TpMasterInformedQueue.live
+  lazy val tpMasterInformedQueue = TypedConfig
+    .get[TpMasterAppConfig]
+    .toLayer
+    .flatMap(config => TpMasterInformedQueue.live(config.get.informedQueue))
 }

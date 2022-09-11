@@ -4,46 +4,50 @@ import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.stream.ZAkkaScope
 import dev.toothpick.proto.api.{TpInformRequest, TpInformResponse}
 import zio.clock.Clock
-import zio.{Has, UIO, URLayer, ZManaged, ZRefM}
+import zio.{Has, UIO, URLayer, ZManaged, ZRef, ZRefM}
 
-import java.util.UUID
+import scala.concurrent.duration.FiniteDuration
 import scala.jdk.DurationConverters.ScalaDurationOps
+
+final case class TpMasterInformedQueueConfig(maxDuration: FiniteDuration)
 
 object TpMasterInformedQueue {
   trait Service {
     def inform(request: TpInformRequest): UIO[TpInformResponse]
   }
 
-  def live: URLayer[Has[TpMasterMetrics] with Clock with IzLogging, TpMasterInformedQueue] = {
+  def live(config: TpMasterInformedQueueConfig)
+    : URLayer[Has[TpMasterMetrics] with Clock with IzLogging, TpMasterInformedQueue] = {
     val managed = for {
-      ref <- ZRefM.make(Map.empty[UUID, Int]).toManaged_
+      mapRef <- ZRefM.make(Map.empty[Long, Int]).toManaged_
       scope <- ZManaged.make(ZAkkaScope.make)(_.close().orDie)
       taskEnv <- ZManaged.environment[Clock]
       metrics <- ZManaged.service[TpMasterMetrics]
       zlogger <- IzLogging.zioLogger.toManaged_
+      idRef <- ZRef.make(0L).toManaged_
     } yield {
       new Service {
         def inform(request: TpInformRequest): UIO[TpInformResponse] = {
           for {
-            uuid <- UIO(UUID.randomUUID())
+            id <- idRef.updateAndGet(_ + 1L)
             _ <- zlogger.info(s"Got $request")
-            _ <- ref.update { map =>
+            _ <- mapRef.update { map =>
               UIO {
-                val updated = map.updated(uuid, request.queueSize)
+                val updated = map.updated(id, request.queueSize)
                 metrics.informedQueueSize.set(updated.values.sum)
                 updated
               }
             }
             _ <- scope.fork(
-              ref
+              mapRef
                 .update { map =>
                   UIO {
-                    val updated = map.removed(uuid)
+                    val updated = map.removed(id)
                     metrics.informedQueueSize.set(updated.values.sum)
                     updated
                   }
                 }
-                .delay(request.duration.toJava)
+                .delay(request.duration.max(config.maxDuration).toJava)
                 .provide(taskEnv)
             )
           } yield TpInformResponse()

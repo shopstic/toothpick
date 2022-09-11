@@ -90,6 +90,7 @@ object TpWorkerApp extends ZAkkaApp {
         .add("Metrics logging", logMetrics)
         .add("Test execution", executionPipeline.run(appConfig.execution))
         .run()
+
     } yield ()
   }
 }
