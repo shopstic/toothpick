@@ -35,7 +35,7 @@ message TpRunStage {
 }
 
 message TpInformRequest {
-  int32 queueSize = 1;
+  uint32 queueSize = 1;
   uint64 duration = 2
       [ (scalapb.field).type = "scala.concurrent.duration.FiniteDuration" ];
 }

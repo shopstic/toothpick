@@ -4,7 +4,7 @@ import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.stream.ZAkkaScope
 import dev.toothpick.proto.api.{TpInformRequest, TpInformResponse}
 import zio.clock.Clock
-import zio.{Has, UIO, URLayer, ZManaged, ZRef, ZRefM}
+import zio.{Has, UIO, URLayer, ZManaged}
 
 import scala.concurrent.duration.FiniteDuration
 import scala.jdk.DurationConverters.ScalaDurationOps
@@ -19,35 +19,22 @@ object TpMasterInformedQueue {
   def live(config: TpMasterInformedQueueConfig)
     : URLayer[Has[TpMasterMetrics] with Clock with IzLogging, TpMasterInformedQueue] = {
     val managed = for {
-      mapRef <- ZRefM.make(Map.empty[Long, Int]).toManaged_
       scope <- ZManaged.make(ZAkkaScope.make)(_.close().orDie)
       taskEnv <- ZManaged.environment[Clock]
       metrics <- ZManaged.service[TpMasterMetrics]
       zlogger <- IzLogging.zioLogger.toManaged_
-      idRef <- ZRef.make(0L).toManaged_
     } yield {
       new Service {
         def inform(request: TpInformRequest): UIO[TpInformResponse] = {
           for {
-            id <- idRef.updateAndGet(_ + 1L)
-            _ <- zlogger.info(s"Got $request")
-            _ <- mapRef.update { map =>
-              UIO {
-                val updated = map.updated(id, request.queueSize)
-                metrics.informedQueueSize.set(updated.values.sum)
-                updated
-              }
+            _ <- zlogger.info(s"Received queue informing $request")
+            queueSize = math.max(0, request.queueSize)
+            _ <- UIO {
+              metrics.informedQueueSize.inc(queueSize)
             }
             _ <- scope.fork(
-              mapRef
-                .update { map =>
-                  UIO {
-                    val updated = map.removed(id)
-                    metrics.informedQueueSize.set(updated.values.sum)
-                    updated
-                  }
-                }
-                .delay(request.duration.max(config.maxDuration).toJava)
+              UIO(metrics.informedQueueSize.dec(queueSize))
+                .delay(request.duration.min(config.maxDuration).toJava)
                 .provide(taskEnv)
             )
           } yield TpInformResponse()
