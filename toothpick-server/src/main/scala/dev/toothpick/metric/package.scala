@@ -6,4 +6,5 @@ import zio.Has
 package object metric {
   type PrometheusCollectorRegistry = Has[CollectorRegistry]
   type PrometheusMetricServer = Has[PrometheusMetricServer.Service]
+  type TpMasterInformedQueue = Has[TpMasterInformedQueue.Service]
 }

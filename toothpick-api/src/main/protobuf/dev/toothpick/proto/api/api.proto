@@ -9,20 +9,18 @@ import "dev/toothpick/proto/api/test-hierarchy.proto";
 package dev.toothpick.proto.api;
 
 service TpApi {
-  rpc Run (TpRunRequest) returns (TpRunResponse) {
-  }
+  rpc Inform(TpInformRequest) returns (TpInformResponse) {}
 
-  rpc Abort (TpAbortRequest) returns (TpAbortResponse) {
-  }
+  rpc Run(TpRunRequest) returns (TpRunResponse) {}
 
-  rpc Watch (TpWatchRequest) returns (stream TpWatchResponse) {
-  }
+  rpc Abort(TpAbortRequest) returns (TpAbortResponse) {}
 
-  rpc GetHierarchy (TpGetHierarchyRequest) returns (stream TpTestNode) {
-  }
+  rpc Watch(TpWatchRequest) returns (stream TpWatchResponse) {}
 
-  rpc GetDistributions (TpGetDistributionsRequest) returns (stream TpRunDistribution) {
-  }
+  rpc GetHierarchy(TpGetHierarchyRequest) returns (stream TpTestNode) {}
+
+  rpc GetDistributions(TpGetDistributionsRequest)
+      returns (stream TpRunDistribution) {}
 }
 
 message TpTestRunOptions {
@@ -31,9 +29,18 @@ message TpTestRunOptions {
 }
 
 message TpRunStage {
-  TpRunRequest request = 1 [(scalapb.field).no_box = true];
-  repeated int32 suitePerProcessNodeIds = 2 [(scalapb.field).collection_type="scala.collection.immutable.Set"];
+  TpRunRequest request = 1 [ (scalapb.field).no_box = true ];
+  repeated int32 suitePerProcessNodeIds = 2
+      [ (scalapb.field).collection_type = "scala.collection.immutable.Set" ];
 }
+
+message TpInformRequest {
+  int32 queueSize = 1;
+  uint64 duration = 2
+      [ (scalapb.field).type = "scala.concurrent.duration.FiniteDuration" ];
+}
+
+message TpInformResponse {}
 
 message TpRunRequest {
   map<int32, TpTestNode> hierarchy = 1;
@@ -41,53 +48,54 @@ message TpRunRequest {
 }
 
 message TpRunTestId {
-  string runId = 1 [(scalapb.field).type = "java.util.UUID"];
+  string runId = 1 [ (scalapb.field).type = "java.util.UUID" ];
   int32 testId = 2;
 }
 
 message TpRunResponse {
-  string runId = 1 [(scalapb.field).type = "java.util.UUID"];
+  string runId = 1 [ (scalapb.field).type = "java.util.UUID" ];
 }
 
 message TpAbortRequest {
-  string runId = 1 [(scalapb.field).type = "java.util.UUID"];
+  string runId = 1 [ (scalapb.field).type = "java.util.UUID" ];
 }
 
-message TpAbortResponse {
-  bool aborted = 1;
-}
+message TpAbortResponse { bool aborted = 1; }
 
 message TpWatchRequest {
-  TpRunTestId runTestId = 1 [(scalapb.field).no_box = true];
-  google.protobuf.BytesValue versionstamp = 2 [(scalapb.field).type = "com.apple.foundationdb.tuple.Versionstamp"];
+  TpRunTestId runTestId = 1 [ (scalapb.field).no_box = true ];
+  google.protobuf.BytesValue versionstamp = 2
+      [ (scalapb.field).type = "com.apple.foundationdb.tuple.Versionstamp" ];
 }
 
 message TpWatchResponse {
   bool ended = 1;
-  bytes versionstamp = 2 [(scalapb.field).type = "com.apple.foundationdb.tuple.Versionstamp"];
-  TpTestReport report = 3 [(scalapb.field).no_box = true];
+  bytes versionstamp = 2
+      [ (scalapb.field).type = "com.apple.foundationdb.tuple.Versionstamp" ];
+  TpTestReport report = 3 [ (scalapb.field).no_box = true ];
 }
 
 message TpTestReport {
-  google.protobuf.Timestamp time = 1 [(scalapb.field).type = "java.time.Instant", (scalapb.field).no_box = true];
+  google.protobuf.Timestamp time = 1 [
+    (scalapb.field).type = "java.time.Instant",
+    (scalapb.field).no_box = true
+  ];
   TpTestEvent event = 2;
 }
 
-message TpRunHierarchy {
-  map<int32, TpTestNode> hierarchy = 1;
-}
+message TpRunHierarchy { map<int32, TpTestNode> hierarchy = 1; }
 
 message TpGetDistributionsRequest {
-  string runId = 1 [(scalapb.field).type = "java.util.UUID"];
+  string runId = 1 [ (scalapb.field).type = "java.util.UUID" ];
 }
 
 message TpRunDistribution {
-  string runId = 1 [(scalapb.field).type = "java.util.UUID"];
-  int32 testId = 2 ;
+  string runId = 1 [ (scalapb.field).type = "java.util.UUID" ];
+  int32 testId = 2;
   string image = 3;
   repeated string args = 4;
 }
 
 message TpGetHierarchyRequest {
-  string runId = 1 [(scalapb.field).type = "java.util.UUID"];
+  string runId = 1 [ (scalapb.field).type = "java.util.UUID" ];
 }

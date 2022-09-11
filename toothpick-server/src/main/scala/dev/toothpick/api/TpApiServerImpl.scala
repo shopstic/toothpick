@@ -6,6 +6,7 @@ import dev.chopsticks.fp.akka_env.AkkaEnv
 import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.fp.zio_ext.MeasuredLogging
 import dev.chopsticks.kvdb.util.KvdbException.ConditionalTransactionFailedException
+import dev.toothpick.metric.TpMasterInformedQueue
 import dev.toothpick.proto.api.ZioApi.RTpApi
 import dev.toothpick.proto.api._
 import dev.toothpick.proto.server.{TpRunAbortRequestStatus, TpTestStatus}
@@ -16,7 +17,12 @@ import zio.{Task, UIO, ZIO}
 
 import java.util.UUID
 
-final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with MeasuredLogging] {
+final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with MeasuredLogging with TpMasterInformedQueue] {
+  def inform(request: TpInformRequest)
+    : ZIO[TpState with AkkaEnv with MeasuredLogging with TpMasterInformedQueue, Status, TpInformResponse] = {
+    ZIO.accessM[TpMasterInformedQueue](_.get.inform(request))
+  }
+
   override def run(request: TpRunRequest): ZIO[TpState with MeasuredLogging, Status, TpRunResponse] = {
     val task = for {
       state <- TpState.get

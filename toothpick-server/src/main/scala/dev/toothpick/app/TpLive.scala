@@ -14,11 +14,12 @@ import dev.chopsticks.dstream.metric.{
 import dev.chopsticks.fp.akka_env.AkkaEnv
 import dev.chopsticks.kvdb.util.{KvdbIoThreadPool, KvdbSerdesThreadPool}
 import dev.chopsticks.metric.log.MetricLogger
-import dev.chopsticks.metric.prom.PromMetricRegistryFactory
-import dev.toothpick.metric.PrometheusMetricServer
+import dev.chopsticks.metric.prom.{PromMetricRegistry, PromMetricRegistryFactory}
+import dev.toothpick.metric.{PrometheusMetricServer, TpMasterInformedQueue, TpMasterMetrics}
 import dev.toothpick.pipeline.TpDistributionPipeline.{TpWorkerDistributionContext, TpWorkerDistributionResult}
 import dev.toothpick.pipeline.{TpDistributionPipeline, TpExecutionPipeline}
 import dev.toothpick.api.TpApiServer
+import dev.toothpick.metric.TpMasterMetrics.TpMasterMetric
 import dev.toothpick.proto.dstream._
 import dev.toothpick.state.TpState
 import io.prometheus.client.CollectorRegistry
@@ -83,4 +84,8 @@ object TpLive {
   lazy val tpApiServer = TpApiServer.live
   lazy val tpState = TpState.live
   lazy val metricLogger = MetricLogger.live()
+
+  lazy val tpMasterMetricRegistry = PromMetricRegistry.live[TpMasterMetric]("tp_master")
+  lazy val tpMasterMetrics = TpMasterMetrics.live
+  lazy val tpMasterInformedQueue = TpMasterInformedQueue.live
 }

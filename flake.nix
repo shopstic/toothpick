@@ -135,6 +135,7 @@
                 kubernetes-helm
                 ps
                 amazon-ecr-credential-helper
+                grpcurl
                 ;
               inherit (hotPotPkgs)
                 manifest-tool

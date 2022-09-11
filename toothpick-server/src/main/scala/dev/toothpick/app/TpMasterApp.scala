@@ -9,10 +9,10 @@ import dev.chopsticks.fp.config.TypedConfig
 import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.fp.util.LoggedRace
 import dev.chopsticks.metric.log.MetricLogger
-import dev.toothpick.metric.{PrometheusMetricServer, PrometheusMetricServerConfig}
-import dev.toothpick.pipeline.TpDistributionPipeline.TpWorkerDistributionConfig
-import dev.toothpick.pipeline.TpDistributionPipeline
 import dev.toothpick.api.{TpApiServer, TpApiServerConfig, TpApiServerImpl}
+import dev.toothpick.metric.{PrometheusMetricServer, PrometheusMetricServerConfig, TpMasterMetrics}
+import dev.toothpick.pipeline.TpDistributionPipeline
+import dev.toothpick.pipeline.TpDistributionPipeline.TpWorkerDistributionConfig
 import dev.toothpick.state.TpDbConfig
 import pureconfig.ConfigConvert
 import scalapb.zio_grpc.ZBindableService
@@ -66,7 +66,10 @@ object TpMasterApp extends ZAkkaApp {
         kvdbIoThreadPool,
         kvdbSerdesThreadPool,
         tpApiServer,
-        metricLogger
+        metricLogger,
+        tpMasterMetricRegistry,
+        tpMasterInformedQueue,
+        tpMasterMetrics
       )
   }
 
@@ -107,19 +110,21 @@ object TpMasterApp extends ZAkkaApp {
       .periodicallyCollect {
         for {
           stateMetrics <- ZIO.accessM[DstreamStateMetricsManager](_.get.activeSet)
-          masterMetrics <- ZIO.accessM[DstreamMasterMetricsManager](_.get.activeSet)
+          dstreamMasterMetrics <- ZIO.accessM[DstreamMasterMetricsManager](_.get.activeSet)
+          masterMetrics <- ZIO.service[TpMasterMetrics]
         } yield {
-          import MetricLogger.sum
+          import MetricLogger.{sum, snapshot}
 
           ListMap(
             "workers" -> sum(stateMetrics)(_.workerCount),
             "offers" -> sum(stateMetrics)(_.offersTotal),
+            "informed-queue" -> snapshot(masterMetrics.informedQueueSize.get),
             "queue" -> sum(stateMetrics)(_.queueSize),
             "map" -> sum(stateMetrics)(_.mapSize),
-            "assignments" -> sum(masterMetrics)(_.assignmentsTotal),
-            "attempts" -> sum(masterMetrics)(_.attemptsTotal),
-            "successes" -> sum(masterMetrics)(_.successesTotal),
-            "failures" -> sum(masterMetrics)(_.failuresTotal)
+            "assignments" -> sum(dstreamMasterMetrics)(_.assignmentsTotal),
+            "attempts" -> sum(dstreamMasterMetrics)(_.attemptsTotal),
+            "successes" -> sum(dstreamMasterMetrics)(_.successesTotal),
+            "failures" -> sum(dstreamMasterMetrics)(_.failuresTotal)
           )
         }
       }
