@@ -86,9 +86,7 @@ jobs:
           
           skopeo --insecure-policy copy \
             nix:./result \
-            docker-daemon:"${IMAGE_TARGET}"
-
-          docker push "${IMAGE_TARGET}"
+            docker://"${IMAGE_TARGET}"
 
   push-manifest:
     name: Push multi-arch manifest
