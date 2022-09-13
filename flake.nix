@@ -5,13 +5,13 @@
     hotPot.url = "github:shopstic/nix-hot-pot";
     nixpkgs.follows = "hotPot/nixpkgs";
     flakeUtils.follows = "hotPot/flakeUtils";
+    fdbPkg.follows = "hotPot/fdbPkg";
     nix2containerPkg.follows = "hotPot/nix2containerPkg";
-    fdb.url = "github:shopstic/nix-fdb/7.1.21";
-    helmet.url = "github:shopstic/helmet/1.16.5";
-    jetski.url = "github:shopstic/jetski/1.1.6";
+    helmet.url = "github:shopstic/helmet/1.16.7";
+    jetski.url = "github:shopstic/jetski/1.1.7";
   };
 
-  outputs = { self, nixpkgs, flakeUtils, fdb, hotPot, nix2containerPkg, helmet, jetski }:
+  outputs = { self, nixpkgs, flakeUtils, hotPot, fdbPkg, nix2containerPkg, helmet, jetski }:
     flakeUtils.lib.eachSystem [ "aarch64-darwin" "x86_64-linux" "aarch64-linux" ]
       (system:
         let
@@ -20,7 +20,7 @@
           nix2container = nix2containerPkg.packages.${system}.nix2container;
           writeTextFiles = pkgs.callPackage hotPot.lib.writeTextFiles { };
           nonRootShadowSetup = pkgs.callPackage hotPot.lib.nonRootShadowSetup { inherit writeTextFiles; };
-          fdbLib = fdb.packages.${system}.fdb_7.lib;
+          fdbLib = fdbPkg.packages.${system}.fdb_7.lib;
           jdkArgs = [
             "--set DYLD_LIBRARY_PATH ${fdbLib}"
             "--set LD_LIBRARY_PATH ${fdbLib}"
