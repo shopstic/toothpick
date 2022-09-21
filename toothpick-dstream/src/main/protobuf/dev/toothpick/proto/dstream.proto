@@ -8,6 +8,7 @@ package dev.toothpick.proto.dstream;
 option (scalapb.options) = {
   no_default_values_in_constructor: true
   import: "dev.chopsticks.kvdb.codec.protobuf_value.ProtobufMappers._"
+  import: "dev.toothpick.proto.ProtoMappers._"
   preserve_unknown_fields: false
 };
 
@@ -36,16 +37,17 @@ message TpWorkerException {
 }
 
 message TpWorkerProgress {
-  int32 logLineCount = 1;
+  int32 log_line_count = 1;
 }
 
 message TpWorkerResult {
-  int32 exitCode = 1;
+  int32 exit_code = 1;
 }
 
 message TpWorkerDistribution {
-  string runId = 1 [(scalapb.field).type = "java.util.UUID"];
-  int32 testId = 2 ;
+  bytes run_id = 1 [(scalapb.field).type = "wvlet.airframe.ulid.ULID"];
+  int32 test_id = 2 ;
   string image = 3;
   repeated string args = 4;
+  bytes seed_artifact_archive = 5;
 }

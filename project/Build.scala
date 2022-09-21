@@ -1,10 +1,10 @@
-import org.scalafmt.sbt.ScalafmtPlugin.autoImport.*
+import org.scalafmt.sbt.ScalafmtPlugin.autoImport._
 import protocbridge.Target
 import sbt.internal.util.complete.DefaultParsers
-import sbt.*
-import sbt.Keys.*
+import sbt._
+import sbt.Keys._
 import sbtprotoc.ProtocPlugin.autoImport.PB
-import wartremover.WartRemover.autoImport.*
+import wartremover.WartRemover.autoImport._
 
 import java.nio.file.Paths
 

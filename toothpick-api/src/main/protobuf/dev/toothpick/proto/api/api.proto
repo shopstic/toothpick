@@ -21,6 +21,8 @@ service TpApi {
 
   rpc GetDistributions(TpGetDistributionsRequest)
       returns (stream TpRunDistribution) {}
+
+  rpc GetArtifactArchive(TpGetArtifactArchiveRequest) returns (stream google.protobuf.BytesValue) {}
 }
 
 message TpTestRunOptions {
@@ -30,12 +32,12 @@ message TpTestRunOptions {
 
 message TpRunStage {
   TpRunRequest request = 1 [ (scalapb.field).no_box = true ];
-  repeated int32 suitePerProcessNodeIds = 2
+  repeated int32 suite_per_process_node_ids = 2
       [ (scalapb.field).collection_type = "scala.collection.immutable.Set" ];
 }
 
 message TpInformRequest {
-  uint32 queueSize = 1;
+  uint32 queue_size = 1;
   uint64 duration = 2
       [ (scalapb.field).type = "scala.concurrent.duration.FiniteDuration" ];
 }
@@ -45,25 +47,26 @@ message TpInformResponse {}
 message TpRunRequest {
   map<int32, TpTestNode> hierarchy = 1;
   map<int32, TpTestRunOptions> run_options = 2;
+  bytes seed_artifact_archive = 3;
 }
 
 message TpRunTestId {
-  string runId = 1 [ (scalapb.field).type = "java.util.UUID" ];
-  int32 testId = 2;
+  bytes run_id = 1 [ (scalapb.field).type = "wvlet.airframe.ulid.ULID" ];
+  int32 test_id = 2;
 }
 
 message TpRunResponse {
-  string runId = 1 [ (scalapb.field).type = "java.util.UUID" ];
+  bytes runId = 1 [ (scalapb.field).type = "wvlet.airframe.ulid.ULID" ];
 }
 
 message TpAbortRequest {
-  string runId = 1 [ (scalapb.field).type = "java.util.UUID" ];
+  bytes runId = 1 [ (scalapb.field).type = "wvlet.airframe.ulid.ULID" ];
 }
 
 message TpAbortResponse { bool aborted = 1; }
 
 message TpWatchRequest {
-  TpRunTestId runTestId = 1 [ (scalapb.field).no_box = true ];
+  TpRunTestId run_test_id = 1 [ (scalapb.field).no_box = true ];
   google.protobuf.BytesValue versionstamp = 2
       [ (scalapb.field).type = "com.apple.foundationdb.tuple.Versionstamp" ];
 }
@@ -86,16 +89,20 @@ message TpTestReport {
 message TpRunHierarchy { map<int32, TpTestNode> hierarchy = 1; }
 
 message TpGetDistributionsRequest {
-  string runId = 1 [ (scalapb.field).type = "java.util.UUID" ];
+  bytes run_id = 1 [ (scalapb.field).type = "wvlet.airframe.ulid.ULID" ];
 }
 
 message TpRunDistribution {
-  string runId = 1 [ (scalapb.field).type = "java.util.UUID" ];
-  int32 testId = 2;
+  bytes run_id = 1 [ (scalapb.field).type = "wvlet.airframe.ulid.ULID" ];
+  int32 test_id = 2;
   string image = 3;
   repeated string args = 4;
 }
 
 message TpGetHierarchyRequest {
-  string runId = 1 [ (scalapb.field).type = "java.util.UUID" ];
+  bytes run_id = 1 [ (scalapb.field).type = "wvlet.airframe.ulid.ULID" ];
+}
+
+message TpGetArtifactArchiveRequest {
+  TpRunTestId run_test_id = 1 [ (scalapb.field).no_box = true ];
 }

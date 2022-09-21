@@ -101,4 +101,7 @@ object Dependencies {
     "dev.zio" %% "zio-test-sbt" % ZIO_VERSION % "test"
   )
 
+  lazy val airframeUlidDeps = Seq(
+    "org.wvlet.airframe" %% "airframe-ulid" % "22.9.2"
+  )
 }

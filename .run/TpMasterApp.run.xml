@@ -6,7 +6,7 @@
       <env name="FDB_CLUSTER_FILE" value="$PROJECT_DIR$/local-env/env/private/cluster.file" />
     </envs>
     <option name="MAIN_CLASS_NAME" value="dev.toothpick.app.TpMasterApp" />
-    <module name="toothpick.server" />
+    <module name="toothpick-server" />
     <selectedOptions>
       <option name="vmParameters" />
     </selectedOptions>
@@ -19,7 +19,6 @@
     </extension>
     <method v="2">
       <option name="Make" enabled="true" />
-      <option name="BSP.BeforeRunTask" enabled="true" />
     </method>
   </configuration>
 </component>

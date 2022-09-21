@@ -14,18 +14,19 @@ import dev.chopsticks.stream.ZAkkaScope
 import dev.toothpick.proto.api._
 import dev.toothpick.proto.dstream._
 import dev.toothpick.state.TpState
-import dev.toothpick.state.TpStateDef.RunEventKey
+import dev.toothpick.state.TpStateDef.{RunArtifactKey, RunEventKey}
 import eu.timepit.refined.auto._
 import eu.timepit.refined.types.numeric.PosInt
 import eu.timepit.refined.types.string.NonEmptyString
 import pureconfig.generic.FieldCoproductHint
+import wvlet.airframe.ulid.ULID
 import zio.Schedule.{Decision, StepFunction}
-import zio.blocking.Blocking
+import zio.blocking.{blocking, Blocking}
 import zio.clock.Clock
-import zio.process.{Command, CommandError}
+import zio.process.{Command, CommandError, ProcessInput}
 import zio.stm._
 import zio.stream.ZStream
-import zio.{RIO, Schedule, Task, URIO, URLayer, ZIO}
+import zio.{RIO, Schedule, Task, UIO, URIO, URLayer, ZIO}
 
 import java.time.{Instant, OffsetDateTime}
 import scala.concurrent.duration._
@@ -74,6 +75,7 @@ object TpExecutionPipeline {
     imagePullIdleTimeout: Timeout,
     imagePullCacheTtl: FiniteDuration,
     dockerPath: NonEmptyString,
+    artifactsRootPath: NonEmptyString,
     dockerRunArgs: Vector[NonEmptyString],
     imageStorageCacheTtl: FiniteDuration
   )
@@ -421,13 +423,52 @@ object TpExecutionPipeline {
           } yield imageId
         }
 
-        def runAssignment(runTestId: TpRunTestId, args: Seq[String]) = {
+        def runAssignment(runTestId: TpRunTestId, imageId: String, assignment: TpWorkerDistribution) = {
+          import better.files.Dsl._
+          import better.files._
+
           for {
+            workingDirName <- UIO(ULID.newULID.toString())
+            workingDir = File(config.artifactsRootPath.value) / workingDirName
+            _ <- blocking(Task(mkdirs(workingDir)))
+            _ <- Command("tar", "-xzf", "-", "-C", workingDir.toString())
+              .stdin(ProcessInput.fromByteArray(assignment.seedArtifactArchive.toByteArray))
+              .exitCode
+              .log(s"Extract seed artifact archive of ${assignment.seedArtifactArchive.size()} bytes")
+              .when(!assignment.seedArtifactArchive.isEmpty)
+            _ <- Command("chmod", "-R", "0777", workingDir.toString())
+              .exitCode
             state <- TpState.get
             runtime <- ZIO.runtime[Blocking with MeasuredLogging]
             dispatcher <- AkkaEnv.dispatcher
             logger <- IzLogging.logger
-//            _ <- zLogger.info(s"Running ${config.dockerPath} $args")
+            //            _ <- zLogger.info(s"Running ${config.dockerPath} $args")
+            args = config.dockerRunArgs.map(_.value) ++ Vector(
+              "-v",
+              s"${workingDir.toString()}:/home/app/run",
+              "-w",
+              "/home/app/run"
+            ) ++ Vector(imageId) ++ assignment.args
+
+            storeArtifactArchiveTask = for {
+              isEmpty <- blocking(Task(workingDir.isEmpty))
+              _ <- Command("tar", "-czf", "-", "-C", workingDir.toString(), ".")
+                .stream
+                .mapError(_.asInstanceOf[Throwable])
+                .grouped(10000)
+                .zipWithIndex
+                .mapMParUnordered(16) { case (chunk, index) =>
+                  state.api
+                    .columnFamily(state.keyspaces.artifacts)
+                    .putTask(RunArtifactKey(runTestId, index.toInt), chunk.toArray)
+                    .as(chunk.size)
+                }
+                .runSum
+                .logResult(s"Store artifact archive $workingDir", size => s"stored $size bytes")
+                .unit
+                .when(!isEmpty)
+            } yield ()
+
             process <- Command(config.dockerPath, args: _*).run
             scope <- ZAkkaScope.make
             logPersistenceFlow = state.api.batchTransact { batch: Vector[TpTestOutputLine] =>
@@ -436,9 +477,9 @@ object TpExecutionPipeline {
                   val lineLength = outputLine.content.length
 
                   // FDB has a value length limit of 100,000 bytes.
-                  // An encoded UTF-8 string can occupy at worst 2 bytes per code point.
-                  // Hence we're splitting when a line is longer than 45000 code points, to be safe
-                  val lineLimit = 45000
+                  // An encoded UTF-8 string can occupy at worst 4 bytes per code point.
+                  // Hence we're splitting when a line is longer than 20000 code points, to be safe
+                  val lineLimit = 20000
 
                   if (lineLength > lineLimit) {
                     val partCount = math.ceil(lineLength.toDouble / lineLimit).toInt
@@ -473,7 +514,10 @@ object TpExecutionPipeline {
           } yield {
             import zio.interop.reactivestreams._
 
-            val exitCodeFuture = runtime.unsafeRunToFuture(process.exitCode)
+            val exitCodeFuture = runtime.unsafeRunToFuture(process.exitCode.tap { exitCode =>
+              storeArtifactArchiveTask.when(exitCode.code == 0)
+            })
+
             val exitCodeSource = Source.future(exitCodeFuture)
               .map(c => TpWorkerResult(c.code))
 
@@ -510,6 +554,11 @@ object TpExecutionPipeline {
                         else {
                           Future.successful(())
                         }
+                      }
+                      .transformWith { _ =>
+                        runtime.unsafeRunToFuture(blocking(Task {
+                          workingDir.delete()
+                        }).unit)
                       }
                   }
                 notUsed
@@ -566,12 +615,12 @@ object TpExecutionPipeline {
                       TpWorkerReport(
                         Instant.now,
                         TpWorkerException(
-                          s"Failed fulling image '${assignment.image}', reason: ${pullFailure.toString}"
+                          s"Failed pulling image '${assignment.image}', reason: ${pullFailure.toString}"
                         )
                       )
                     )),
                   imageId =>
-                    runAssignment(runTestId, (config.dockerRunArgs.map(_.value) :+ imageId) ++ assignment.args)
+                    runAssignment(runTestId, imageId, assignment)
                       .catchAll { commandError =>
                         ZIO.succeed(Source.single(
                           TpWorkerReport(Instant.now, TpWorkerException(s"Run error: ${commandError.toString}"))

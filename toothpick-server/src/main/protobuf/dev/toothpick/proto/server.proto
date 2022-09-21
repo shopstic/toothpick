@@ -8,6 +8,7 @@ option (scalapb.options) = {
   flat_package: true
   no_default_values_in_constructor: true
   preserve_unknown_fields: false
+  import: "dev.toothpick.proto.ProtoMappers._"
 };
 
 message TpRunAbortRequestStatus {
@@ -16,4 +17,9 @@ message TpRunAbortRequestStatus {
 
 message TpTestStatus {
   dev.toothpick.proto.api.TpTestReport final_report = 2;
+}
+
+message TpRunMetadata {
+  bytes id = 1 [ (scalapb.field).type = "wvlet.airframe.ulid.ULID" ];
+  bytes seed_artifact_archive = 2;
 }

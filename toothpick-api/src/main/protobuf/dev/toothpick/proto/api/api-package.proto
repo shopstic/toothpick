@@ -9,6 +9,6 @@ option (scalapb.options) = {
   flat_package: true
   no_default_values_in_constructor: true
   import: "dev.chopsticks.kvdb.codec.protobuf_value.ProtobufMappers._"
-  import: "dev.toothpick.proto.Mappers._"
+  import: "dev.toothpick.proto.ProtoMappers._"
   preserve_unknown_fields: false
 };

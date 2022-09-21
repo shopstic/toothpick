@@ -10,12 +10,12 @@ import dev.toothpick.runner.intellij.TpIntellijServiceMessageParser
 import dev.toothpick.runner.intellij.TpIntellijServiceMessageRenderer.unescape
 import dev.toothpick.runner.intellij.TpIntellijServiceMessages.{Attrs, Names}
 import io.grpc.StatusRuntimeException
+import wvlet.airframe.ulid.ULID
 import zio.clock.Clock
 import zio.stream.ZStream
 import zio.{Chunk, Ref, UIO, URIO, ZIO, ZRefM}
 
 import java.time.Instant
-import java.util.UUID
 
 object TpReporter {
   sealed trait TestOutcome {
@@ -86,7 +86,7 @@ object TpReporter {
   }
 
   def reportTest(
-    uuid: UUID,
+    uuid: ULID,
     test: TpTest,
     onlyLogIfFailed: Boolean
   ): URIO[TpApiClient with IzLogging, ZStream[Any, StatusRuntimeException, TpReporterEvent]] = {
@@ -259,7 +259,7 @@ object TpReporter {
   }
 
   def reportSuite(
-    uuid: UUID,
+    uuid: ULID,
     suite: TpTestSuite,
     tests: NonEmptyList[TpTest],
     onlyLogIfFailed: Boolean

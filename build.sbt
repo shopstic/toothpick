@@ -1,4 +1,4 @@
-import Dependencies.*
+import Dependencies._
 import sbt.internal.util.complete.DefaultParsers
 
 import java.nio.file.Paths
@@ -10,10 +10,10 @@ ThisBuild / organization := "dev.toothpick"
 ThisBuild / scalaVersion := "2.13.8"
 
 ThisBuild / resolvers ++= Seq(
-    "Sonatype OSS Snapshots" at "https://s01.oss.sonatype.org/content/repositories/snapshots",
-    "Sonatype OSS Releases" at "https://s01.oss.sonatype.org/content/repositories/releases"
-  )
-  
+  "Sonatype OSS Snapshots" at "https://s01.oss.sonatype.org/content/repositories/snapshots",
+  "Sonatype OSS Releases" at "https://s01.oss.sonatype.org/content/repositories/releases"
+)
+
 ThisBuild / javacOptions := Seq("-encoding", "UTF-8")
 ThisBuild / scalacOptions := Build.scalacOptions
 
@@ -22,6 +22,12 @@ ThisBuild / dependencyOverrides := Dependencies.overrideDeps
 // ThisBuild / dockerVersion := DockerVersion.parse("20.10.10")
 ThisBuild / PB.protocVersion := "3.17.3"
 
+lazy val protoCommon = Build
+  .defineProject("proto-common")
+  .settings(
+    libraryDependencies ++= chopsticksKvdbCodecFdbKeyDeps ++ chopsticksKvdbCodecProtobufValueDeps ++ airframeUlidDeps
+  )
+
 lazy val api = Build
   .defineProject("api")
   .enablePlugins(AkkaGrpcPlugin)
@@ -29,10 +35,10 @@ lazy val api = Build
     Compile / PB.targets := Seq(
       scalapb.zio_grpc.ZioCodeGenerator -> (Compile / sourceManaged).value
     ),
-    libraryDependencies ++= scalapbRuntimeDeps ++ grpcNettyDeps ++ chopsticksKvdbCodecFdbKeyDeps ++
-      chopsticksKvdbCodecProtobufValueDeps
+    libraryDependencies ++= scalapbRuntimeDeps ++ grpcNettyDeps
   )
   .settings(Build.createScalapbSettings(withGrpc = true))
+  .dependsOn(protoCommon)
 
 lazy val dstream = Build
   .defineProject("dstream")
@@ -40,8 +46,9 @@ lazy val dstream = Build
   .settings(
     publish / skip := true,
     akkaGrpcCodeGeneratorSettings ++= Seq("server_power_apis", "single_line_to_proto_string"),
-    libraryDependencies ++= akkaGrpcRuntimeDeps ++ chopsticksKvdbCodecProtobufValueDeps
+    libraryDependencies ++= akkaGrpcRuntimeDeps
   )
+  .dependsOn(protoCommon)
 
 lazy val server = Build
   .defineProject("server")
@@ -71,7 +78,8 @@ lazy val runner = Build
     Compile / mainClass := Some("dev.toothpick.app.TpIntellijRunnerApp"),
     Compile / discoveredMainClasses := Seq.empty,
     libraryDependencies ++= scalaXmlDeps ++ jibDeps ++ betterFilesDeps ++ cytodynamicsNucleusDeps ++
-      quicklensDeps ++ fastparseDeps ++ pprintDeps ++ zioDeps ++ pureconfigEnumeratumDeps ++ scalapbJson4sDeps ++
+      quicklensDeps ++ fastparseDeps ++ pprintDeps ++ zioDeps ++ pureconfigEnumeratumDeps ++
+      scalapbJson4sDeps ++ zioProcessDeps ++
       jsoniterDeps.map(m => m.withConfigurations(m.configurations.map(_ + ",test").orElse(Some("test")))),
     publish / skip := true,
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))

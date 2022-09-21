@@ -15,6 +15,7 @@
 , grpc-health-probe
 , curl
 , jq
+, gnutar
 , bash
 }:
 let
@@ -79,6 +80,7 @@ let
       jre
       grpc-health-probe
       entrypoint
+      gnutar
     ];
   };
 
@@ -89,7 +91,7 @@ let
         tag = toothpick.version;
         fromImage = base-image;
         copyToRoot = [ nix-bin shadow home-dir app ];
-        maxLayers = 80;
+        maxLayers = 100;
         perms = [
           {
             path = home-dir;

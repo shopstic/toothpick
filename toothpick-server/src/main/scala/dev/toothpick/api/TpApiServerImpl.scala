@@ -2,20 +2,20 @@ package dev.toothpick.api
 
 import akka.stream.scaladsl.Sink
 import com.apple.foundationdb.tuple.Versionstamp
+import com.google.protobuf.ByteString
 import dev.chopsticks.fp.akka_env.AkkaEnv
 import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.fp.zio_ext.MeasuredLogging
-import dev.chopsticks.kvdb.util.KvdbException.ConditionalTransactionFailedException
+import dev.chopsticks.kvdb.util.KvdbException.{ConditionalTransactionFailedException, SeekFailure}
 import dev.toothpick.metric.TpMasterInformedQueue
 import dev.toothpick.proto.api.ZioApi.RTpApi
 import dev.toothpick.proto.api._
-import dev.toothpick.proto.server.{TpRunAbortRequestStatus, TpTestStatus}
+import dev.toothpick.proto.server.{TpRunAbortRequestStatus, TpRunMetadata, TpTestStatus}
 import dev.toothpick.state.TpState
 import io.grpc.Status
+import wvlet.airframe.ulid.ULID
 import zio.stream.ZStream
 import zio.{Task, UIO, ZIO}
-
-import java.util.UUID
 
 final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with MeasuredLogging with TpMasterInformedQueue] {
   def inform(request: TpInformRequest)
@@ -26,18 +26,28 @@ final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with MeasuredLog
   override def run(request: TpRunRequest): ZIO[TpState with MeasuredLogging, Status, TpRunResponse] = {
     val task = for {
       state <- TpState.get
-      runId <- UIO(UUID.randomUUID())
+      runId <- UIO(ULID.newULID)
       actions <- Task {
-        val tx = request
+        val tx = state.api.transactionBuilder
+          .put(
+            state.keyspaces.metadata,
+            runId,
+            TpRunMetadata(
+              id = runId,
+              seedArtifactArchive = request.seedArtifactArchive
+            )
+          )
+
+        val txWithHierarchy = request
           .hierarchy
-          .foldLeft(state.api.transactionBuilder) { case (t, (id, node)) =>
+          .foldLeft(tx) { case (t, (id, node)) =>
             val runTestId = TpRunTestId(runId, id)
             t.put(state.keyspaces.hierarchy, runTestId, node)
           }
 
         request
           .runOptions
-          .foldLeft(tx) { case (t, (id, runOptions)) =>
+          .foldLeft(txWithHierarchy) { case (t, (id, runOptions)) =>
             val runTestId = TpRunTestId(runId, id)
 
             t
@@ -157,7 +167,10 @@ final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with MeasuredLog
         } yield stream
       }
       .flatten
-      .mapError(Status.INTERNAL.withCause)
+      .mapError {
+        case _: SeekFailure => Status.NOT_FOUND
+        case e => Status.INTERNAL.withCause(e)
+      }
   }
 
   override def getHierarchy(request: TpGetHierarchyRequest): ZStream[TpState with AkkaEnv, Status, TpTestNode] = {
@@ -179,6 +192,36 @@ final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with MeasuredLog
         } yield stream
       }
       .flatten
-      .mapError(Status.INTERNAL.withCause)
+      .mapError {
+        case _: SeekFailure => Status.NOT_FOUND
+        case e => Status.INTERNAL.withCause(e)
+      }
+  }
+
+  override def getArtifactArchive(request: TpGetArtifactArchiveRequest)
+    : ZStream[TpState with AkkaEnv, Status, ByteString] = {
+    import zio.interop.reactivestreams._
+
+    ZStream
+      .fromEffect {
+        for {
+          state <- TpState.get
+          runTestId = request.runTestId
+          stream <- AkkaEnv.actorSystem.map { implicit as =>
+            state
+              .api
+              .columnFamily(state.keyspaces.artifacts)
+              .valueSource(_ startsWith runTestId, _ startsWith runTestId)
+              .map(bytes => ByteString.copyFrom(bytes))
+              .runWith(Sink.asPublisher(false))
+              .toStream()
+          }
+        } yield stream
+      }
+      .flatten
+      .mapError {
+        case _: SeekFailure => Status.NOT_FOUND
+        case e => Status.INTERNAL.withCause(e)
+      }
   }
 }

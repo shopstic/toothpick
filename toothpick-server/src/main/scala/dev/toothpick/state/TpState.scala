@@ -2,7 +2,6 @@ package dev.toothpick.state
 
 import dev.chopsticks.fp.akka_env.AkkaEnv
 import dev.chopsticks.fp.zio_ext.MeasuredLogging
-import dev.chopsticks.kvdb.KvdbDatabase
 import dev.chopsticks.kvdb.api.KvdbDatabaseApi
 import dev.chopsticks.kvdb.fdb.FdbDatabase
 import dev.chopsticks.kvdb.util.{KvdbIoThreadPool, KvdbSerdesThreadPool}
@@ -14,13 +13,13 @@ object TpState {
 
   trait Service {
     def keyspaces: Materialization
-    def backend: KvdbDatabase[BaseCf, CfSet]
+    def backend: FdbDatabase[BaseCf, CfSet]
     def api: KvdbDatabaseApi[BaseCf]
   }
 
   final case class LiveService(
     keyspaces: Materialization,
-    backend: KvdbDatabase[BaseCf, CfSet],
+    backend: FdbDatabase[BaseCf, CfSet],
     api: KvdbDatabaseApi[BaseCf]
   ) extends Service
 
@@ -34,7 +33,7 @@ object TpState {
       config <- ZManaged.service[TpDbConfig]
       backend <- FdbDatabase.manage(TpStateMaterialization, config.backend)
       dbApi <- KvdbDatabaseApi(backend).map(_.withOptions(_ => config.client)).toManaged_
-    } yield LiveService(TpStateMaterialization, backend, dbApi)
+    } yield LiveService(TpStateMaterialization, backend.asInstanceOf[FdbDatabase[TpStateDef.BaseCf, TpStateDef.CfSet]], dbApi)
 
     managed.toLayer
   }

@@ -1,5 +1,6 @@
 package dev.toothpick.runner
 
+import com.google.protobuf.ByteString
 import dev.chopsticks.fp.zio_ext.{MeasuredLogging, ZIOExtensions}
 import dev.toothpick.proto.api.ZioApi.TpApiClient
 import dev.toothpick.proto.api._
@@ -13,26 +14,29 @@ import dev.toothpick.runner.TpRunnerUtils.{
 import dev.toothpick.runner.intellij.TpIntellijTestRunArgsParser.{TpRunnerContext, TpScalaTestContext, TpZTestContext}
 import dev.toothpick.runner.scalatest.TpScalaTestDiscovery
 import eu.timepit.refined.types.numeric.NonNegInt
+import eu.timepit.refined.types.string.NonEmptyString
 import io.grpc.StatusRuntimeException
-import zio.{RIO, UIO, ZIO}
+import wvlet.airframe.ulid.ULID
+import zio.blocking.Blocking
+import zio.{RIO, Task, UIO, ZIO}
 
-import java.util.UUID
 import scala.util.matching.Regex
 
 object TpRunner {
   final case class TpRunnerConfig(
     containerizer: TpRunnerContainerizerConfig,
     duplicateCount: NonNegInt,
-    testPerProcessFileNameRegex: Regex
+    testPerProcessFileNameRegex: Regex,
+    seedArtifactArchiveFilePath: Option[NonEmptyString]
   )
 
   final case class TpRunnerState(
-    runId: UUID,
+    runId: ULID,
     nodeMap: Map[Int, TestNode],
     distributions: List[TestDistribution]
   )
 
-  def fetchState(runId: UUID): ZIO[TpApiClient with MeasuredLogging, StatusRuntimeException, TpRunnerState] = {
+  def fetchState(runId: ULID): ZIO[TpApiClient with MeasuredLogging, StatusRuntimeException, TpRunnerState] = {
 
     val task = for {
       nodeMap <- TpApiClient
@@ -67,7 +71,7 @@ object TpRunner {
     task.mapError(_.asRuntimeException())
   }
 
-  def createStage(context: TpRunnerContext, config: TpRunnerConfig): RIO[MeasuredLogging, TpRunStage] = {
+  def createStage(context: TpRunnerContext, config: TpRunnerConfig): RIO[MeasuredLogging with Blocking, TpRunStage] = {
     for {
       containerImageFib <- TpRunnerContainerizer.containerize(context, config.containerizer)
         .logResult("containerize", identity)
@@ -93,6 +97,14 @@ object TpRunner {
           case _: TpScalaTestContext => "-testName"
           case _: TpZTestContext => "-t"
         }
+      }
+
+      seedArtifactArchiveBytes <- config.seedArtifactArchiveFilePath match {
+        case Some(path) => zio.blocking.blocking(Task {
+            import better.files._
+            ByteString.copyFrom(File(path.value).byteArray)
+          })
+        case None => ZIO.succeed(ByteString.EMPTY)
       }
 
       distributions = TpRunnerUtils.createDistributions(effectiveNodeMap) { suite =>
@@ -123,7 +135,8 @@ object TpRunner {
                 args = Vector("-s", suite.name) ++ testFilterArgs
               )
           }
-          .toMap
+          .toMap,
+        seedArtifactArchive = seedArtifactArchiveBytes
       )
 
       TpRunStage(

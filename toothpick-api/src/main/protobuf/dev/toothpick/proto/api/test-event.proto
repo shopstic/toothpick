@@ -17,18 +17,18 @@ message TpTestEvent {
 }
 
 message TpImagePullingStarted {
-  string workerNode = 1;
-  string imageRef = 2;
+  string worker_node = 1;
+  string image_ref = 2;
 }
 
 message TpImagePullingProgress {
-  string workerNode = 1;
-  string imageRef = 2;
+  string worker_node = 1;
+  string image_ref = 2;
   string log = 3;
 }
 
 message TpImagePullingSuccess {
-  string imageId = 1;
+  string image_id = 1;
 }
 
 message TpImagePullingFailure {
@@ -36,8 +36,8 @@ message TpImagePullingFailure {
 }
 
 message TpImagePullingResult {
-  string workerNode = 1;
-  string imageRef = 2;
+  string worker_node = 1;
+  string image_ref = 2;
   oneof result {
     TpImagePullingSuccess success = 3;
     TpImagePullingFailure failure = 4;
@@ -45,8 +45,8 @@ message TpImagePullingResult {
 }
 
 message TpTestStarted {
-  string workerId = 2;
-  string workerNode = 23;
+  string worker_id = 2;
+  string worker_node = 23;
 }
 
 message TpTestOutputLinePart {
@@ -65,7 +65,7 @@ message TpTestOutputLine {
 }
 
 message TpTestResult {
-  int32 exitCode = 1;
+  int32 exit_code = 1;
 }
 
 message TpTestAborted {}

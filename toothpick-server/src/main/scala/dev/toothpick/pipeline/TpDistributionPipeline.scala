@@ -6,6 +6,7 @@ import com.apple.foundationdb.tuple.Versionstamp
 import dev.chopsticks.dstream.DstreamMaster.DstreamMasterConfig
 import dev.chopsticks.dstream.DstreamServer.DstreamServerConfig
 import dev.chopsticks.dstream.{DstreamMaster, DstreamServer, DstreamServerHandler, Dstreams}
+import dev.chopsticks.fdb.transaction.ZFdbTransaction
 import dev.chopsticks.fp.ZRunnable
 import dev.chopsticks.fp.akka_env.AkkaEnv
 import dev.chopsticks.fp.iz_logging.IzLogging
@@ -158,23 +159,42 @@ object TpDistributionPipeline {
     managed.use { distributionFlow =>
       for {
         state <- TpState.get
+        dbTransaction = ZFdbTransaction(state.backend)
         result <- state
           .api
           .columnFamily(state.keyspaces.queue)
           .tailSource
-          .via {
-            import dev.chopsticks.kvdb.codec.KeyTransformer.identityTransformer
-            state.api.columnFamily(state.keyspaces.distribution).getByKeysFlow(_._2)
-          }
-          .collect { case ((versionstamp, _), Some(distribution)) =>
-            import io.scalaland.chimney.dsl._
-
-            TpWorkerDistributionContext(
-              versionstamp,
-              distribution.into[TpWorkerDistribution].transform
-            )
-          }
           .toZAkkaSource
+          .mapAsync(config.master.parallelism) { case (versionstamp, runTestId) =>
+            dbTransaction.read { api =>
+              val runId = runTestId.runId
+
+              api.keyspace(state.keyspaces.metadata).getValue(_ is runId)
+                .zipPar(api.keyspace(state.keyspaces.distribution).getValue(_ is runTestId))
+                .flatMap {
+                  case (Some(metadata), Some(distribution)) =>
+                    ZIO.succeed(
+                      TpWorkerDistributionContext(
+                        versionstamp,
+                        TpWorkerDistribution(
+                          runId = runId,
+                          testId = distribution.testId,
+                          image = distribution.image,
+                          args = distribution.args,
+                          seedArtifactArchive = metadata.seedArtifactArchive
+                        )
+                      )
+                    )
+
+                  case (maybeMetadata, maybeDistribution) =>
+                    ZIO.fail(
+                      new IllegalStateException(
+                        s"Invalid state for runId=$runId -> metadata=$maybeMetadata distribution=$maybeDistribution"
+                      )
+                    )
+                }
+            }
+          }
           .viaZAkkaFlow(distributionFlow)
           .killSwitch
           .mapAsyncUnordered(config.master.parallelism) { result =>

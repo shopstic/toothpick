@@ -6,8 +6,9 @@
       <env name="FDB_CLUSTER_FILE" value="$PROJECT_DIR$/local-env/env/private/cluster.file" />
     </envs>
     <option name="MAIN_CLASS_NAME" value="dev.toothpick.app.TpWorkerApp" />
-    <module name="toothpick.server" />
+    <module name="toothpick-server" />
     <option name="VM_PARAMETERS" value="-Dapp.execution.worker.parallelism.type=dynamic -Dapp.execution.worker.parallelism.per-worker-core-count=3 -Dapp.execution.worker.assignment-timeout=5.seconds -Dapp.execution.soft-idle-timeout=15.seconds -Dapp.execution.soft-ttl=5.minutes" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
     <extension name="coverage">
       <pattern>
         <option name="PATTERN" value="dev.toothpick.app.*" />
@@ -16,7 +17,6 @@
     </extension>
     <method v="2">
       <option name="Make" enabled="true" />
-      <option name="BSP.BeforeRunTask" enabled="true" />
     </method>
   </configuration>
 </component>

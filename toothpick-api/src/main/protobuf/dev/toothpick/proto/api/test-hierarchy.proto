@@ -14,8 +14,8 @@ message TpTestNode {
 
 message TpTestLocation {
   oneof sealed_value_optional {
-    TpTestClassLocation classLocation = 1;
-    TpTestFileLocation fileLocation = 2;
+    TpTestClassLocation class_location = 1;
+    TpTestFileLocation file_location = 2;
   }
 }
 
