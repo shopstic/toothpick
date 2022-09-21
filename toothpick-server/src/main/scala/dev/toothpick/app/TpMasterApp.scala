@@ -19,6 +19,7 @@ import dev.toothpick.metric.{
 import dev.toothpick.pipeline.TpDistributionPipeline
 import dev.toothpick.pipeline.TpDistributionPipeline.TpWorkerDistributionConfig
 import dev.toothpick.state.TpDbConfig
+import eu.timepit.refined.types.string.NonEmptyString
 import pureconfig.ConfigConvert
 import scalapb.zio_grpc.ZBindableService
 import zio.{ExitCode, Has, RIO, ZIO}
@@ -45,7 +46,8 @@ object TpMasterAppConfig {
 object TpMasterApp extends ZAkkaApp {
 
   override def run(args: List[String]): RIO[ZAkkaAppEnv, ExitCode] = {
-    import TpLive._
+    val liveLayers = new TpLiveLayers()
+    import liveLayers._
     import zio.magic._
 
     val typedConfig = TypedConfig.live[TpMasterAppConfig]()

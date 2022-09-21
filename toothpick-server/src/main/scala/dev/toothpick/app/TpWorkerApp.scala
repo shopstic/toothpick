@@ -25,7 +25,8 @@ final case class TpWorkerAppConfig(
 
 object TpWorkerApp extends ZAkkaApp {
   override def run(args: List[String]): RIO[ZAkkaAppEnv, ExitCode] = {
-    import TpLive._
+    val liveLayers = new TpLiveLayers()
+    import liveLayers._
     import zio.magic._
 
     val typedConfig = grpcClientSettingsConfigReader

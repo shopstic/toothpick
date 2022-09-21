@@ -29,19 +29,19 @@ import zio.ZLayer
 import java.util.concurrent.TimeUnit
 
 //noinspection TypeAnnotation
-object TpLive {
+final class TpLiveLayers(metricPrefix: String = "tp") {
   lazy val promRegistry = ZLayer.succeed(CollectorRegistry.defaultRegistry)
   lazy val promServer = PrometheusMetricServer.live
 
-  lazy val dstreamStateMetricFactory = PromMetricRegistryFactory.live[DstreamStateMetric]("tp")
-  lazy val dstreamWorkerMetricFactory = PromMetricRegistryFactory.live[DstreamWorkerMetric]("tp")
-  lazy val dstreamMasterMetricFactory = PromMetricRegistryFactory.live[DstreamMasterMetric]("tp")
+  lazy val dstreamStateMetricFactory = PromMetricRegistryFactory.live[DstreamStateMetric](metricPrefix)
+  lazy val dstreamWorkerMetricFactory = PromMetricRegistryFactory.live[DstreamWorkerMetric](metricPrefix)
+  lazy val dstreamMasterMetricFactory = PromMetricRegistryFactory.live[DstreamMasterMetric](metricPrefix)
 
   lazy val dstreamStateMetricsManager = DstreamStateMetricsManager.live
   lazy val dstreamClientMetricsManager = DstreamClientMetricsManager.live
   lazy val dstreamMasterMetricsManager = DstreamMasterMetricsManager.live
 
-  lazy val dstreamState = DstreamState.manage[TpWorkerDistribution, TpWorkerReport]("tp").toLayer
+  lazy val dstreamState = DstreamState.manage[TpWorkerDistribution, TpWorkerReport](metricPrefix).toLayer
   lazy val dstreamServerHandlerFactory =
     DstreamServerHandlerFactory.live[TpWorkerDistribution, TpWorkerReport] { handle =>
       AkkaEnv.actorSystem.map { implicit as =>
@@ -86,7 +86,7 @@ object TpLive {
   lazy val tpState = TpState.live
   lazy val metricLogger = MetricLogger.live()
 
-  lazy val tpMasterMetricRegistry = PromMetricRegistry.live[TpMasterMetric]("tp_master")
+  lazy val tpMasterMetricRegistry = PromMetricRegistry.live[TpMasterMetric](s"${metricPrefix}_master")
   lazy val tpMasterMetrics = TpMasterMetrics.live
   lazy val tpMasterInformedQueue = TypedConfig
     .get[TpMasterAppConfig]
