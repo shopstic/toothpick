@@ -67,12 +67,6 @@ jobs:
         run: |-
           nix build -L '.#packages.${{ matrix.arch.nix }}.server-image' 
 
-      - name: Login to Amazon ECR
-        uses: ./.github/actions/login-to-public-ecr
-        if: ${{ matrix.arch.image }}
-        with:
-          imageRepo: ${{ env.IMAGE_REPOSITORY }}
-
       - name: Push
         env:
           GITHUB_SHA: ${{ github.sha }}
@@ -97,11 +91,6 @@ jobs:
       IMAGE_REPOSITORY: public.ecr.aws/shopstic
     steps:
       - uses: actions/checkout@v3
-      
-      - name: Login to Amazon ECR
-        uses: ./.github/actions/login-to-public-ecr
-        with:
-          imageRepo: ${{ env.IMAGE_REPOSITORY }}
 
       - name: Push
         shell: nix develop -v -c bash {0}
@@ -123,11 +112,6 @@ jobs:
       IMAGE_REPOSITORY: public.ecr.aws/shopstic
     steps:
       - uses: actions/checkout@v3
-
-      - name: Login to Amazon ECR
-        uses: ./.github/actions/login-to-public-ecr
-        with:
-          imageRepo: ${{ env.IMAGE_REPOSITORY }}
 
       - name: Build and push Helm Chart
         shell: nix develop -v -c bash {0}

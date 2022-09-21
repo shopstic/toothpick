@@ -1,5 +1,6 @@
 import sbt._
 
+//noinspection TypeAnnotation
 object Dependencies {
   val CHOPSTICKS_VERSION = "3.10.0+717-3ce5b2d-SNAPSHOT"
   val ZIO_VERSION = "1.0.14"
@@ -49,8 +50,8 @@ object Dependencies {
   )
 
   lazy val jsoniterDeps = Seq(
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.17.1",
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.17.1" % "provided"
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.17.2",
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.17.2" % "provided"
   )
 
   lazy val pureconfigEnumeratumDeps = Seq(
