@@ -345,7 +345,7 @@ object TpReporter {
 
               case Names.TEST_FAILED =>
                 reportNext(
-                  sm.attributes.get(Attrs.NAME),
+                  sm.attributes.get(Attrs.NAME).map(unescape),
                   TestFailed(
                     message = unescape(sm.attributes.getOrElse(Names.MESSAGE, "")),
                     details = unescape(sm.attributes.getOrElse(Attrs.DETAILS, ""))
@@ -355,14 +355,14 @@ object TpReporter {
 
               case Names.TEST_IGNORED =>
                 reportNext(
-                  sm.attributes.get(Attrs.NAME),
+                  sm.attributes.get(Attrs.NAME).map(unescape),
                   TestIgnored,
                   time
                 )
 
               case Names.MESSAGE if sm.attributes.get(Attrs.STATUS).contains("ERROR") =>
                 reportNext(
-                  sm.attributes.get(Attrs.NAME),
+                  sm.attributes.get(Attrs.NAME).map(unescape),
                   TestFailed(
                     message = unescape(sm.attributes.getOrElse(Attrs.TEXT, "")),
                     details = unescape(sm.attributes.getOrElse(Attrs.ERROR_DETAILS, ""))
