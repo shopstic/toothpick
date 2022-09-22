@@ -5,18 +5,18 @@ import dev.chopsticks.fp.config.{HoconConfig, TypedConfig}
 import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.fp.util.ZTraceConcisePrinter
 import dev.chopsticks.fp.zio_ext.ZIOExtensions
+import dev.toothpick.app.TpConsoleRunnerStageApp.stderrLogRouterLayer
 import dev.toothpick.artifact.{TpArtifactAggregator, TpArtifactAggregatorConfig}
 import dev.toothpick.runner.TpRunnerApiClient.TpRunnerApiClientConfig
 import dev.toothpick.runner.{TpRunner, TpRunnerApiClient}
 import logstage.Log
-import pureconfig.{ConfigConvert, ConfigReader}
+import pureconfig.ConfigReader
+import pureconfig.generic.ProductHint
 import wvlet.airframe.ulid.ULID
-import zio.blocking.blocking
 import zio.{ExitCode, Task, UIO, URIO, ZIO}
 
 object TpArtifactAggregatorApp extends zio.App {
   final case class AppConfig(
-    runId: ULID,
     apiClient: TpRunnerApiClientConfig,
     artifactAggregator: TpArtifactAggregatorConfig
   )
@@ -25,8 +25,7 @@ object TpArtifactAggregatorApp extends zio.App {
     // noinspection TypeAnnotation
     implicit lazy val configReader = {
       import dev.chopsticks.util.config.PureconfigConverters._
-      implicit val ulidReader: ConfigReader[ULID] =
-        ConfigReader.fromNonEmptyString[ULID](ConfigConvert.catchReadError(ULID.fromString))
+      implicit val hint: ProductHint[AppConfig] = ProductHint[AppConfig](allowUnknownKeys = true)
       ConfigReader[AppConfig]
     }
   }
@@ -38,25 +37,18 @@ object TpArtifactAggregatorApp extends zio.App {
     } yield client).toLayer
 
     val main = for {
-      extractionDestinationPath <- args match {
+      runId <- args match {
         case head :: Nil =>
-          import better.files._
-          for {
-            file <- Task(File(head))
-            isDir <- blocking(Task(file.isDirectory))
-            _ <-
-              ZIO.fail(new IllegalArgumentException(s"The provided extraction destination path does not exist: $head"))
-                .when(!isDir)
-          } yield file.path
+          Task(ULID.fromString(head))
 
         case got =>
           ZIO.fail(new IllegalArgumentException(
-            s"Expected exactly 1 argument which is the extraction destination path, instead got: $got"
+            s"Expected exactly 1 argument for the runId in ULID format, instead got: $got"
           ))
       }
       appConfig <- TypedConfig.get[AppConfig]
-      runnerState <- TpRunner.fetchState(appConfig.runId)
-      _ <- TpArtifactAggregator.aggregate(runnerState, appConfig.artifactAggregator, extractionDestinationPath)
+      runnerState <- TpRunner.fetchState(runId)
+      _ <- TpArtifactAggregator.aggregate(runnerState, appConfig.artifactAggregator, better.files.Dsl.cwd.path)
     } yield ()
 
     import zio.magic._
@@ -66,7 +58,7 @@ object TpArtifactAggregatorApp extends zio.App {
       .injectSome[zio.ZEnv](
         HoconConfig.live(Some(this.getClass)),
         TypedConfig.live[AppConfig](logLevel = Log.Level.Info),
-        TpIntellijRunnerApp.logRouterLayer,
+        stderrLogRouterLayer,
         IzLogging.live(),
         AkkaEnv.live(),
         apiClientLayer
