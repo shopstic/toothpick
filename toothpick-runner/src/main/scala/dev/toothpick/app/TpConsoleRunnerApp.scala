@@ -1,5 +1,7 @@
 package dev.toothpick.app
 
+import better.files.File
+import dev.chopsticks.fp.akka_env.AkkaEnv
 import dev.chopsticks.fp.config.{HoconConfig, TypedConfig}
 import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.fp.util.ZTraceConcisePrinter
@@ -19,7 +21,6 @@ import zio.console.putStrLn
 import zio.{ExitCode, Task, UIO, URIO}
 
 import java.nio.file.{Files, Paths}
-import dev.chopsticks.fp.akka_env.AkkaEnv
 
 object TpConsoleRunnerApp extends zio.App {
   final case class AppConfig(
@@ -36,12 +37,18 @@ object TpConsoleRunnerApp extends zio.App {
     }
   }
 
-  private def runWithStage(stage: TpRunStage) = {
+  private def runWithStage(stage: TpRunStage, runIdOutputFile: File) = {
     for {
       zlogger <- IzLogging.zioLogger
       appConfig <- TypedConfig.get[AppConfig]
       runnerState <- TpRunner.run(stage)
       _ <- zlogger.info(s"Run has started with ${runnerState.runId}")
+      _ <- zio.blocking
+        .blocking(Task {
+          runIdOutputFile.parent.createDirectories()
+          runIdOutputFile.writeText(runnerState.runId.toString())
+        })
+        .log(s"Write runId to $runIdOutputFile")
       result <- TpConsoleReporter.report(runnerState, appConfig.reporter)
       (hierarchy, maybeRunReport) = result
       failures =
@@ -84,17 +91,19 @@ object TpConsoleRunnerApp extends zio.App {
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
     val main = args match {
-      case file :: Nil =>
+      case stageFile :: runIdOutputFile :: Nil =>
         for {
-          raw <- effectBlocking(Files.readString(Paths.get(file)))
-          stage <- Task(JsonFormat.fromJsonString[TpRunStage](raw))
-          ret <- runWithStage(stage)
+          rawStage <- effectBlocking(Files.readString(Paths.get(stageFile)))
+          stage <- Task(JsonFormat.fromJsonString[TpRunStage](rawStage))
+          ret <- runWithStage(stage, File(runIdOutputFile))
         } yield ret
 
-      case _ =>
+      case got =>
         IzLogging
           .zioLogger
-          .flatMap(_.error(s"Path to a stage file (in JSON) is required as the only CLI argument. Got $args"))
+          .flatMap(_.error(
+            s"Expected 2 arguments: a file path to a stage file (in JSON) and a file path to output the runId. Instead $got"
+          ))
           .as(ExitCode(1))
     }
 
