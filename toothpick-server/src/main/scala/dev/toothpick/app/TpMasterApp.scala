@@ -19,7 +19,6 @@ import dev.toothpick.metric.{
 import dev.toothpick.pipeline.TpDistributionPipeline
 import dev.toothpick.pipeline.TpDistributionPipeline.TpWorkerDistributionConfig
 import dev.toothpick.state.TpDbConfig
-import eu.timepit.refined.types.string.NonEmptyString
 import pureconfig.ConfigConvert
 import scalapb.zio_grpc.ZBindableService
 import zio.{ExitCode, Has, RIO, ZIO}

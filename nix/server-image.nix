@@ -16,6 +16,7 @@
 , curl
 , jq
 , gnutar
+, gzip
 , bash
 }:
 let
@@ -81,6 +82,7 @@ let
       grpc-health-probe
       entrypoint
       gnutar
+      gzip
     ];
   };
 

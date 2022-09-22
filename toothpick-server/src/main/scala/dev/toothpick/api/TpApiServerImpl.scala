@@ -5,7 +5,7 @@ import com.apple.foundationdb.tuple.Versionstamp
 import com.google.protobuf.ByteString
 import dev.chopsticks.fp.akka_env.AkkaEnv
 import dev.chopsticks.fp.iz_logging.IzLogging
-import dev.chopsticks.fp.zio_ext.MeasuredLogging
+import dev.chopsticks.fp.zio_ext.{MeasuredLogging, ZIOExtensions}
 import dev.chopsticks.kvdb.util.KvdbException.{ConditionalTransactionFailedException, SeekFailure}
 import dev.toothpick.metric.TpMasterInformedQueue
 import dev.toothpick.proto.api.ZioApi.RTpApi
@@ -70,6 +70,12 @@ final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with MeasuredLog
     } yield TpRunResponse(runId)
 
     task
+      .log(
+        s"Process run request " +
+          s"run_options_count=${request.runOptions.size} " +
+          s"hierarchy_count=${request.hierarchy.size} " +
+          s"seed_artifact_archive_size=${request.seedArtifactArchive.size()}"
+      )
       .tapCause { e =>
         IzLogging.zioLogger.flatMap(_.error(s"Failed handling run request: ${e.squash -> "exception"}"))
       }

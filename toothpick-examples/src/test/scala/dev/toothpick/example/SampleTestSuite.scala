@@ -4,6 +4,8 @@ import org.scalatest.Succeeded
 import org.scalatest.matchers.must.Matchers._
 import org.scalatest.wordspec.AsyncWordSpecLike
 
+import java.time.Instant
+import java.util.UUID
 import scala.concurrent.{blocking, Future}
 
 final class SampleTestSuite extends AsyncWordSpecLike {
@@ -21,6 +23,16 @@ final class SampleTestSuite extends AsyncWordSpecLike {
           (1 + 1) must not equal 3
         }
       }
+    }
+  }
+
+  "side-effecting to create artifacts" in {
+    Future {
+      import better.files.Dsl._
+      println("Current working directory:")
+      cwd.listRecursively.foreach(f => println(s"- $f"))
+      (cwd / UUID.randomUUID().toString).writeText(Instant.now.toString)
+      Succeeded
     }
   }
 

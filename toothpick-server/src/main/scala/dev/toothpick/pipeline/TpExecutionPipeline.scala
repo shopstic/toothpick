@@ -32,7 +32,7 @@ import java.time.{Instant, OffsetDateTime}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future, TimeoutException}
 import scala.jdk.DurationConverters.ScalaDurationOps
-import scala.util.control.NoStackTrace
+import scala.util.control.{NoStackTrace, NonFatal}
 
 object TpExecutionPipeline {
   val INTERNAL_IMAGE_REPO = "toothpick.dev/internal"
@@ -452,9 +452,15 @@ object TpExecutionPipeline {
 
             storeArtifactArchiveTask = for {
               isEmpty <- blocking(Task(workingDir.isEmpty))
-              _ <- Command("tar", "-czf", "-", "-C", workingDir.toString(), ".")
+              _ <- Command("tar", "-cf", "-", "-C", workingDir.toString(), ".")
+                .pipe(Command("gzip", "-9"))
                 .stream
-                .mapError(_.asInstanceOf[Throwable])
+                // Up-cast CommandError to Throwable to workaround
+                // type inferrence limitation of mapMParUnordered below
+                .mapError {
+                  case NonFatal(e) => e
+                  case _ => ???
+                }
                 .grouped(10000)
                 .zipWithIndex
                 .mapMParUnordered(16) { case (chunk, index) =>
@@ -469,6 +475,7 @@ object TpExecutionPipeline {
                 .when(!isEmpty)
             } yield ()
 
+            _ <- zlogger.info(s"Executing ${(Vector(config.dockerPath) ++ args).mkString(" ") -> "command"}")
             process <- Command(config.dockerPath, args: _*).run
             scope <- ZAkkaScope.make
             logPersistenceFlow = state.api.batchTransact { batch: Vector[TpTestOutputLine] =>

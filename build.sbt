@@ -89,7 +89,7 @@ lazy val examples = Build
   .defineProject("examples")
   .settings(
     publish / skip := true,
-    libraryDependencies ++= scalatestDeps.map(_ % "test")
+    libraryDependencies ++= betterFilesDeps ++ scalatestDeps.map(_ % "test")
   )
 
 lazy val exp = Build
