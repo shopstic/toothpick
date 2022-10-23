@@ -67,6 +67,9 @@ object TpIntellijTestRunArgsParser {
     ctx: TpRunnerEnvironment
   ): TpScalaTestContext = {
     args match {
+      case "-testName" :: _ :: "-s" :: suiteClassName :: tail if suiteClassName.nonEmpty =>
+        val suite = TpRunnerSuiteFilter(suiteClassName)
+        extractScalaTestRunnerMultiSuites(suites.enqueue(suite), tail)
       case "-s" :: suiteClassName :: tail if suiteClassName.nonEmpty =>
         val suite = TpRunnerSuiteFilter(suiteClassName)
         extractScalaTestRunnerMultiSuites(suites.enqueue(suite), tail)
