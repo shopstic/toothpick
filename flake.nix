@@ -7,8 +7,8 @@
     flakeUtils.follows = "hotPot/flakeUtils";
     fdbPkg.follows = "hotPot/fdbPkg";
     nix2containerPkg.follows = "hotPot/nix2containerPkg";
-    helmet.url = "github:shopstic/helmet/1.16.7";
-    jetski.url = "github:shopstic/jetski/1.1.7";
+    helmet.url = "github:shopstic/helmet/1.19.3";
+    jetski.url = "github:shopstic/jetski/1.1.10";
   };
 
   outputs = { self, nixpkgs, flakeUtils, hotPot, fdbPkg, nix2containerPkg, helmet, jetski }:
