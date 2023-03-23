@@ -7,6 +7,7 @@ import dev.chopsticks.fp.akka_env.AkkaEnv
 import dev.chopsticks.fp.iz_logging.IzLogging
 import dev.chopsticks.fp.zio_ext.{MeasuredLogging, ZIOExtensions}
 import dev.chopsticks.kvdb.util.KvdbException.{ConditionalTransactionFailedException, SeekFailure}
+import dev.chopsticks.stream.ZAkkaSource.SourceToZAkkaSource
 import dev.toothpick.metric.TpMasterInformedQueue
 import dev.toothpick.proto.api.ZioApi.RTpApi
 import dev.toothpick.proto.api._
@@ -229,5 +230,49 @@ final class TpApiServerImpl extends RTpApi[TpState with AkkaEnv with MeasuredLog
         case _: SeekFailure => Status.NOT_FOUND
         case e => Status.INTERNAL.withCause(e)
       }
+  }
+
+  override def gc(request: TpGcRequest)
+    : ZIO[TpState with AkkaEnv with MeasuredLogging with TpMasterInformedQueue with Any, Status, TpGcResponse] = {
+    val oldestEpochMillis = request.oldestTime.toEpochMilli
+    val parallelism = math.min(1, request.parallelism)
+
+    val task = for {
+      state <- TpState.get
+      _ <- state.api
+        .columnFamily(state.keyspaces.metadata)
+        .source
+        .collect {
+          case (k, _) if k.timestamp < oldestEpochMillis =>
+            k
+        }
+        .toZAkkaSource
+        .killSwitch
+        .mapAsyncUnordered(parallelism) { runId =>
+          val purge = for {
+            actions <- Task {
+              state.api.transactionBuilder
+                .delete(state.keyspaces.metadata, runId)
+                .delete(state.keyspaces.abort, runId)
+                .deletePrefix(state.keyspaces.hierarchy, runId)
+                .deletePrefix(state.keyspaces.distribution, runId)
+                .deletePrefix(state.keyspaces.status, runId)
+                .deletePrefix(state.keyspaces.artifacts, runId)
+                .deletePrefix(state.keyspaces.reports, runId)
+                .result
+            }
+            _ <- state.api.transact(actions)
+          } yield runId
+
+          purge.log(s"Purge run_id=$runId")
+        }
+        .interruptibleRunIgnore()
+    } yield TpGcResponse()
+
+    task
+      .tapCause { e =>
+        IzLogging.zioLogger.flatMap(_.error(s"Failed handling gc request: ${e.squash -> "exception"}"))
+      }
+      .mapError(Status.INTERNAL.withCause)
   }
 }

@@ -13,6 +13,8 @@ service TpApi {
 
   rpc Run(TpRunRequest) returns (TpRunResponse) {}
 
+  rpc Gc(TpGcRequest) returns (TpGcResponse) {}
+
   rpc Abort(TpAbortRequest) returns (TpAbortResponse) {}
 
   rpc Watch(TpWatchRequest) returns (stream TpWatchResponse) {}
@@ -31,18 +33,27 @@ message TpTestRunOptions {
 }
 
 message TpRunStage {
-  TpRunRequest request = 1 [ (scalapb.field).no_box = true ];
+  TpRunRequest request = 1 [(scalapb.field).no_box = true];
   repeated int32 suite_per_process_node_ids = 2
-      [ (scalapb.field).collection_type = "scala.collection.immutable.Set" ];
+  [(scalapb.field).collection_type = "scala.collection.immutable.Set"];
 }
 
 message TpInformRequest {
   uint32 queue_size = 1;
   uint64 duration = 2
-      [ (scalapb.field).type = "scala.concurrent.duration.FiniteDuration" ];
+  [(scalapb.field).type = "scala.concurrent.duration.FiniteDuration"];
 }
 
 message TpInformResponse {}
+
+message TpGcRequest {
+  google.protobuf.Timestamp oldest_time = 1 [
+    (scalapb.field).type = "java.time.Instant",
+    (scalapb.field).no_box = true
+  ];
+  int32 parallelism = 2;
+}
+message TpGcResponse {}
 
 message TpRunRequest {
   map<int32, TpTestNode> hierarchy = 1;
@@ -51,31 +62,31 @@ message TpRunRequest {
 }
 
 message TpRunTestId {
-  bytes run_id = 1 [ (scalapb.field).type = "wvlet.airframe.ulid.ULID" ];
+  bytes run_id = 1 [(scalapb.field).type = "wvlet.airframe.ulid.ULID"];
   int32 test_id = 2;
 }
 
 message TpRunResponse {
-  bytes runId = 1 [ (scalapb.field).type = "wvlet.airframe.ulid.ULID" ];
+  bytes runId = 1 [(scalapb.field).type = "wvlet.airframe.ulid.ULID"];
 }
 
 message TpAbortRequest {
-  bytes runId = 1 [ (scalapb.field).type = "wvlet.airframe.ulid.ULID" ];
+  bytes runId = 1 [(scalapb.field).type = "wvlet.airframe.ulid.ULID"];
 }
 
-message TpAbortResponse { bool aborted = 1; }
+message TpAbortResponse {bool aborted = 1;}
 
 message TpWatchRequest {
-  TpRunTestId run_test_id = 1 [ (scalapb.field).no_box = true ];
+  TpRunTestId run_test_id = 1 [(scalapb.field).no_box = true];
   google.protobuf.BytesValue versionstamp = 2
-      [ (scalapb.field).type = "com.apple.foundationdb.tuple.Versionstamp" ];
+  [(scalapb.field).type = "com.apple.foundationdb.tuple.Versionstamp"];
 }
 
 message TpWatchResponse {
   bool ended = 1;
   bytes versionstamp = 2
-      [ (scalapb.field).type = "com.apple.foundationdb.tuple.Versionstamp" ];
-  TpTestReport report = 3 [ (scalapb.field).no_box = true ];
+  [(scalapb.field).type = "com.apple.foundationdb.tuple.Versionstamp"];
+  TpTestReport report = 3 [(scalapb.field).no_box = true];
 }
 
 message TpTestReport {
@@ -86,23 +97,23 @@ message TpTestReport {
   TpTestEvent event = 2;
 }
 
-message TpRunHierarchy { map<int32, TpTestNode> hierarchy = 1; }
+message TpRunHierarchy {map<int32, TpTestNode> hierarchy = 1;}
 
 message TpGetDistributionsRequest {
-  bytes run_id = 1 [ (scalapb.field).type = "wvlet.airframe.ulid.ULID" ];
+  bytes run_id = 1 [(scalapb.field).type = "wvlet.airframe.ulid.ULID"];
 }
 
 message TpRunDistribution {
-  bytes run_id = 1 [ (scalapb.field).type = "wvlet.airframe.ulid.ULID" ];
+  bytes run_id = 1 [(scalapb.field).type = "wvlet.airframe.ulid.ULID"];
   int32 test_id = 2;
   string image = 3;
   repeated string args = 4;
 }
 
 message TpGetHierarchyRequest {
-  bytes run_id = 1 [ (scalapb.field).type = "wvlet.airframe.ulid.ULID" ];
+  bytes run_id = 1 [(scalapb.field).type = "wvlet.airframe.ulid.ULID"];
 }
 
 message TpGetArtifactArchiveRequest {
-  TpRunTestId run_test_id = 1 [ (scalapb.field).no_box = true ];
+  TpRunTestId run_test_id = 1 [(scalapb.field).no_box = true];
 }
