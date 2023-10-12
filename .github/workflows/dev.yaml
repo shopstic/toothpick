@@ -38,7 +38,7 @@ jobs:
         name: Determine current version
         run: |-
           CURRENT_VERSION=$(./release.sh get_release_version) || exit $?
-          echo "::set-output name=version::${CURRENT_VERSION}"
+          echo "version=${CURRENT_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Build intellij-scala-runners
         run: |-
