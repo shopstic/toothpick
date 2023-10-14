@@ -2,7 +2,7 @@ import sbt._
 
 //noinspection TypeAnnotation
 object Dependencies {
-  val CHOPSTICKS_VERSION = "3.10.0+717-3ce5b2d-SNAPSHOT"
+  val CHOPSTICKS_VERSION = "3.12.0+756-19425e8-SNAPSHOT"
   val ZIO_VERSION = "1.0.14"
 
   lazy val akkaGrpcRuntimeDeps = Seq(
@@ -10,7 +10,7 @@ object Dependencies {
   )
 
   lazy val betterFilesDeps = Seq(
-    "com.github.pathikrit" %% "better-files" % "3.9.1"
+    "com.github.pathikrit" %% "better-files" % "3.9.2"
   )
 
   lazy val chopsticksKvdbCodecFdbKeyDeps = Seq(
@@ -50,12 +50,12 @@ object Dependencies {
   )
 
   lazy val jsoniterDeps = Seq(
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.17.2",
-    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.17.2" % "provided"
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.21.3",
+    "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.21.3" % "provided"
   )
 
   lazy val pureconfigEnumeratumDeps = Seq(
-    "com.github.pureconfig" %% "pureconfig-enumeratum" % "0.17.1"
+    "com.github.pureconfig" %% "pureconfig-enumeratum" % "0.17.2"
   )
 
   lazy val quicklensDeps = Seq(
@@ -67,7 +67,7 @@ object Dependencies {
   )
 
   lazy val pprintDeps = Seq(
-    "com.lihaoyi" %% "pprint" % "0.7.3"
+    "com.lihaoyi" %% "pprint" % "0.8.1"
   )
 
   lazy val scalaXmlDeps = Seq(
@@ -103,6 +103,6 @@ object Dependencies {
   )
 
   lazy val airframeUlidDeps = Seq(
-    "org.wvlet.airframe" %% "airframe-ulid" % "22.9.2"
+    "org.wvlet.airframe" %% "airframe-ulid" % "23.3.0"
   )
 }
