@@ -30,7 +30,7 @@ jobs:
     outputs:
       version: ${{ steps.determine-version.outputs.version }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -90,7 +90,7 @@ jobs:
     env:
       IMAGE_REPOSITORY: public.ecr.aws/shopstic
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Push
         shell: nix develop -v -c bash {0}
@@ -111,7 +111,7 @@ jobs:
     env:
       IMAGE_REPOSITORY: public.ecr.aws/shopstic
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Build and push Helm Chart
         shell: nix develop -v -c bash {0}
