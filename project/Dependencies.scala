@@ -2,7 +2,7 @@ import sbt._
 
 //noinspection TypeAnnotation
 object Dependencies {
-  val CHOPSTICKS_VERSION = "3.12.0+756-19425e8-SNAPSHOT"
+  val CHOPSTICKS_VERSION = "3.12.0+763-0ccbffd-SNAPSHOT"
   val ZIO_VERSION = "1.0.14"
 
   lazy val akkaGrpcRuntimeDeps = Seq(
