@@ -258,6 +258,15 @@ object TpReporter {
     }
   }
 
+  private def truncateMessage(message: String, length: Int): String = {
+    if (message.length <= length) {
+      message
+    }
+    else {
+      message.take(length) + s" ... [${message.length - length} more chars truncated]"
+    }
+  }
+
   def reportSuite(
     uuid: ULID,
     suite: TpTestSuite,
@@ -285,10 +294,14 @@ object TpReporter {
         }
       }
 
-      def reportNext(maybeTestName: Option[String], outcome: TestOutcome, time: Instant) = {
+      def reportNext(
+        maybeTestName: Option[String],
+        outcome: TestOutcome,
+        time: Instant
+      ): ZIO[Any, IllegalStateException, Chunk[TestReport]] = {
         pendingTests.modify {
           case test :: tail =>
-            for {
+            val t: ZIO[Any, IllegalStateException, (Chunk[TestReport], List[TpTest])] = for {
               startTime <- startTimeRef.getAndSet(time)
               testOutcome = TestReport(
                 nodeId = test.id,
@@ -317,7 +330,20 @@ object TpReporter {
               out -> tail
             }
 
-          case Nil => ZIO.fail(new IllegalStateException("Received extra test report"))
+            t
+
+          case Nil =>
+            val suiteName = suite.name
+            val truncatedOutcome = outcome match {
+              case TestPassed => outcome
+              case TestIgnored => outcome
+              case TestFailed(message, details) =>
+                TestFailed(truncateMessage(message, 2048), truncateMessage(details, 2048))
+            }
+
+            zlogger
+              .warn(s"Received extra test report $suiteName $maybeTestName $truncatedOutcome")
+              .as(Chunk.empty -> Nil)
         }
       }
 
