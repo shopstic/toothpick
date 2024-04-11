@@ -2,7 +2,7 @@ replicaCount: 1
 
 global:
   image:
-    repository: public.ecr.aws/shopstic/toothpick-server
+    repository: public.ecr.aws/z8i7w3s6/toothpick-server
     pullPolicy: IfNotPresent
     tag: ""
 

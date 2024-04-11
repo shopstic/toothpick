@@ -1,12 +1,12 @@
 { stdenv, lib, fetchzip }:
 stdenv.mkDerivation rec {
   pname = "intellij-scala-runners";
-  version = "2022.1.11";
+  version = "2024.1.15";
 
   src = fetchzip {
     name = "${pname}-${version}";
-    url = "https://plugins.jetbrains.com/files/1347/166693/scala-intellij-bin-${version}.zip";
-    sha256 = "sha256-ExlENrcITS0LJJSu4H+d0JxunW5zdi285mVPZhCjbEw=";
+    url = "https://plugins.jetbrains.com/files/1347/516275/scala-intellij-bin-${version}.zip";
+    sha256 = "sha256-2g1pKR5F/K2KPzdTZolYp58REgLvbf606OkEB4l03L4=";
   };
 
   installPhase = ''

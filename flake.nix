@@ -112,7 +112,14 @@
               "metals.sbtScript" = sbt + "/bin/sbt";
               "nix.enableLanguageServer" = true;
               "nix.formatterPath" = pkgs.nixpkgs-fmt + "/bin/nixpkgs-fmt";
-              "nix.serverPath" = pkgs.rnix-lsp + "/bin/rnix-lsp";
+              "nix.serverSettings" = {
+                "nil" = {
+                  "formatting" = {
+                    "command" = [ "nixpkgs-fmt" ];
+                  };
+                };
+              };
+              "nix.serverPath" = pkgs.nil + "/bin/nil";
             };
           };
           devShell = pkgs.mkShellNoCC {

@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TOOTHPICK_CONFIG="./toothpick-examples/src/test/resources/.toothpick.conf"
+DEFAULT_TOOTHPICK_CONFIG="./toothpick-examples/src/test/resources/.toothpick.conf"
 
 test_runner_create_stage() {
+  export TOOTHPICK_CONFIG=${TOOTHPICK_CONFIG:-"${DEFAULT_TOOTHPICK_CONFIG}"}
+
   local TEMP_FILE
   TEMP_FILE=$(mktemp)
   trap "rm -Rf ${TEMP_FILE}" EXIT
@@ -29,7 +31,8 @@ test_runner_create_stage() {
 }
 
 test_runner_run_stage() {
-  local STAGE_FILE=${1:?"Stage file is required"}
+  export TOOTHPICK_CONFIG=${TOOTHPICK_CONFIG:-"${DEFAULT_TOOTHPICK_CONFIG}"}
+
   local TEMP_FILE
   TEMP_FILE=$(mktemp)
   trap "rm -Rf ${TEMP_FILE}" EXIT
@@ -43,7 +46,7 @@ test_runner_run_stage() {
     "${RUNNER_CP}" \
     "-Dconfig.entry=${TOOTHPICK_CONFIG}" \
     dev.toothpick.app.TpConsoleRunnerApp \
-    "${STAGE_FILE}"
+    "$@"
 }
 
 "$@"
