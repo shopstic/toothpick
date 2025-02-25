@@ -58,7 +58,7 @@ jobs:
 
       - name: Build server
         run: |-
-          nix build -L '.#packages.${{ matrix.arch.nix }}.server'
+          nix build -L '.#packages.${{ matrix.arch.nix }}.toothpick'
 
       - name: Cache packages
         run: |
