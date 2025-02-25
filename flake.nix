@@ -17,9 +17,10 @@
         let
           pkgs = import nixpkgs { inherit system; };
           hotPotPkgs = hotPot.packages.${system};
+          hotPotLib = hotPot.lib.${system};
           nix2container = nix2containerPkg.packages.${system}.nix2container;
-          writeTextFiles = pkgs.callPackage hotPot.lib.writeTextFiles { };
-          nonRootShadowSetup = pkgs.callPackage hotPot.lib.nonRootShadowSetup { inherit writeTextFiles; };
+          writeTextFiles = pkgs.callPackage hotPotLib.writeTextFiles { };
+          nonRootShadowSetup = pkgs.callPackage hotPotLib.nonRootShadowSetup { inherit writeTextFiles; };
           fdbLib = fdbPkg.packages.${system}.fdb_7.lib;
           jdkArgs = [
             "--set DYLD_LIBRARY_PATH ${fdbLib}"
@@ -29,11 +30,11 @@
           jreArgs = [
             ''--run "if [[ -f ./.env ]]; then source ./.env; elif [[ -f ../.env ]]; then source ../.env; fi"''
           ];
-          jdk = pkgs.callPackage hotPot.lib.wrapJdk {
+          jdk = pkgs.callPackage hotPotLib.wrapJdk {
             jdk = hotPot.packages.${system}.jdk17;
             args = pkgs.lib.concatStringsSep " " (jdkArgs ++ jreArgs);
           };
-          jre = pkgs.callPackage hotPot.lib.wrapJdk {
+          jre = pkgs.callPackage hotPotLib.wrapJdk {
             jdk = hotPot.packages.${system}.jre17;
             args = pkgs.lib.concatStringsSep " " jreArgs;
           };
