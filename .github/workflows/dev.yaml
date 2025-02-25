@@ -62,7 +62,7 @@ jobs:
 
       - name: Cache packages
         run: |
-          pkgs=(runner-jre intellij-scala-runners server deps)
+          pkgs=(runner-jre intellij-scala-runners toothpick deps)
           for pkg in "${pkgs[@]}"; do
             nix_output=".#packages.${{ matrix.arch.nix }}.${pkg}"
             nix store sign "${nix_output}" -v -r -k <(echo -n "${NIX_CACHE_SIGNING_PRIVATE_KEY}")

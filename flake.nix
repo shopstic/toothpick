@@ -157,10 +157,9 @@
           inherit devShell;
           defaultPackage = toothpick;
           packages = {
-            inherit intellij-scala-runners;
+            inherit intellij-scala-runners toothpick;
             devEnv = devShell.inputDerivation;
             deps = toothpick-deps;
-            server = toothpick.server;
             runner-jre = toothpick-runner-jre;
           } // (pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
             server-image = toothpick-server-image;
