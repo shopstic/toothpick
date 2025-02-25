@@ -125,6 +125,7 @@
           devShell = pkgs.mkShellNoCC {
             shellHook = ''
               ln -Tfs ${dev-sdks} ./.dev-sdks
+              mkdir -p ./.vscode
               cat ${vscode-settings} > ./.vscode/settings.json
               if [[ -f ./.env ]]; then
                 source ./.env
