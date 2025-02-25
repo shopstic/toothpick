@@ -62,10 +62,11 @@ jobs:
 
       - name: Cache packages
         run: |
-          PKGS=(runner-jre intellij-scala-runners server deps)
-          for PKG in "${PKGS[@]}"; do
-            nix store sign "${PKG}" -v -r -k <(echo -n "${NIX_CACHE_SIGNING_PRIVATE_KEY}")
-            nix copy -v --to "s3://${NIX_CACHE_BUCKET_NAME}/cache?region=${NIX_CACHE_BUCKET_REGION}&compression=zstd&parallel-compression=true" ".#packages.${{ matrix.arch.nix }}.${PKG}"
+          pkgs=(runner-jre intellij-scala-runners server deps)
+          for pkg in "${pkgs[@]}"; do
+            nix_output=".#packages.${{ matrix.arch.nix }}.${pkg}"
+            nix store sign "${nix_output}" -v -r -k <(echo -n "${NIX_CACHE_SIGNING_PRIVATE_KEY}")
+            nix copy -v --to "s3://${NIX_CACHE_BUCKET_NAME}/cache?region=${NIX_CACHE_BUCKET_REGION}&compression=zstd&parallel-compression=true" "${nix_output}"
           done
 
       - name: Build container images
