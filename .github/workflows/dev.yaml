@@ -56,30 +56,17 @@ jobs:
         run: |-
           nix build -L --no-link '.#packages.${{ matrix.arch.nix }}.runner-jre'
 
-      - name: Cache runner
-        env:
-          NIX_OUTPUT: .#packages.${{ matrix.arch.nix }}.runner-jre
-        run: |
-          nix store sign "${NIX_OUTPUT}" -v -r -k <(echo -n "${NIX_CACHE_SIGNING_PRIVATE_KEY}")
-          nix copy -v --to "s3://${NIX_CACHE_BUCKET_NAME}/cache?region=${NIX_CACHE_BUCKET_REGION}&compression=zstd&parallel-compression=true" "${NIX_OUTPUT}"
-
-      - name: Cache intellij-scala-runners
-        env:
-          NIX_OUTPUT: .#packages.${{ matrix.arch.nix }}.intellij-scala-runners
-        run: |
-          nix store sign "${NIX_OUTPUT}" -v -r -k <(echo -n "${NIX_CACHE_SIGNING_PRIVATE_KEY}")
-          nix copy -v --to "s3://${NIX_CACHE_BUCKET_NAME}/cache?region=${NIX_CACHE_BUCKET_REGION}&compression=zstd&parallel-compression=true" "${NIX_OUTPUT}"
-
       - name: Build server
         run: |-
-          nix build -L '.#packages.${{ matrix.arch.nix }}.server'           
+          nix build -L '.#packages.${{ matrix.arch.nix }}.server'
 
-      - name: Cache server
-        env:
-          NIX_OUTPUT: .#packages.${{ matrix.arch.nix }}.server
+      - name: Cache packages
         run: |
-          nix store sign "${NIX_OUTPUT}" -v -r -k <(echo -n "${NIX_CACHE_SIGNING_PRIVATE_KEY}")
-          nix copy -v --to "s3://${NIX_CACHE_BUCKET_NAME}/cache?region=${NIX_CACHE_BUCKET_REGION}&compression=zstd&parallel-compression=true" "${NIX_OUTPUT}"
+          PKGS=(runner-jre intellij-scala-runners server deps)
+          for PKG in "${PKGS[@]}"; do
+            nix store sign "${PKG}" -v -r -k <(echo -n "${NIX_CACHE_SIGNING_PRIVATE_KEY}")
+            nix copy -v --to "s3://${NIX_CACHE_BUCKET_NAME}/cache?region=${NIX_CACHE_BUCKET_REGION}&compression=zstd&parallel-compression=true" ".#packages.${{ matrix.arch.nix }}.${PKG}"
+          done
 
       - name: Build container images
         if: ${{ matrix.arch.image }}
