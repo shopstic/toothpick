@@ -19,8 +19,7 @@
           hotPotPkgs = hotPot.packages.${system};
           hotPotLib = hotPot.lib.${system};
           nix2container = nix2containerPkg.packages.${system}.nix2container;
-          writeTextFiles = pkgs.callPackage hotPotLib.writeTextFiles { };
-          nonRootShadowSetup = pkgs.callPackage hotPotLib.nonRootShadowSetup { inherit writeTextFiles; };
+          nonRootShadowSetup = hotPotLib.nonRootShadowSetup;
           fdbLib = fdbPkg.packages.${system}.fdb_7.lib;
           jdkArgs = [
             "--set DYLD_LIBRARY_PATH ${fdbLib}"
