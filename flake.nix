@@ -21,6 +21,10 @@
           nix2container = nix2containerPkg.packages.${system}.nix2container;
           nonRootShadowSetup = hotPotLib.nonRootShadowSetup;
           fdbLib = fdbPkg.packages.${system}.fdb_7.lib;
+          fdbcli = pkgs.runCommand "fdbcli" {} ''
+            mkdir -p $out/bin
+            cp ${fdbPkg.packages.${system}.fdb_7}/bin/fdbcli $out/bin/fdbcli
+          '';
           jdkArgs = [
             "--set DYLD_LIBRARY_PATH ${fdbLib}"
             "--set LD_LIBRARY_PATH ${fdbLib}"
@@ -55,7 +59,7 @@
 
           toothpick-server-image = pkgs.callPackage ./nix/server-image.nix
             {
-              inherit nonRootShadowSetup toothpick fdbLib nix2container jre;
+              inherit nonRootShadowSetup toothpick fdbLib fdbcli nix2container jre;
               inherit (hotPotPkgs)
                 grpc-health-probe;
             };

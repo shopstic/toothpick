@@ -31,9 +31,7 @@ object TpState {
   ] = {
     val managed = for {
       config <- ZManaged.service[TpDbConfig]
-      backend <- FdbDatabase
-        .manage(TpStateMaterialization, config.backend)
-        .retry(Schedule.once)
+      backend <- FdbDatabase.manage(TpStateMaterialization, config.backend)
       dbApi <- KvdbDatabaseApi(backend).map(_.withOptions(_ => config.client)).toManaged_
     } yield LiveService(TpStateMaterialization, backend.asInstanceOf[FdbDatabase[TpStateDef.BaseCf, TpStateDef.CfSet]], dbApi)
 

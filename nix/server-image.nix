@@ -9,6 +9,7 @@
 , nix2container
 , jre
 , toothpick
+, fdbcli
 , fdbLib
 , dumb-init
 , prom2json
@@ -17,7 +18,7 @@
 , jq
 , gnutar
 , gzip
-, bash
+, bashInteractive
 }:
 let
   name = "toothpick-server";
@@ -32,7 +33,7 @@ let
   };
 
   user = "app";
-  shadow = nonRootShadowSetup { inherit user; uid = 1001; shellBin = "${bash}/bin/bash"; };
+  shadow = nonRootShadowSetup { inherit user; uid = 1001; shellBin = "${bashInteractive}/bin/bash"; };
   home-dir = runCommand "home-dir" { } ''mkdir -p $out/home/${user}'';
 
   javaSecurityOverrides = writeTextFile {
@@ -73,7 +74,7 @@ let
     '';
     paths = [
       dumb-init
-      bash
+      bashInteractive
       curl
       prom2jq
       prom2json
@@ -83,6 +84,7 @@ let
       entrypoint
       gnutar
       gzip
+      fdbcli
     ];
   };
 
