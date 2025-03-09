@@ -14,6 +14,12 @@ defaults:
   run:
     shell: nix develop -v -c bash {0}
 
+env:
+  IMAGE_REPOSITORY: ${{ vars.IMAGE_REPOSITORY }}
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.NIX_AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.NIX_AWS_SECRET_ACCESS_KEY }}
+
 jobs:
   release:
     name: Release ${{ github.event.inputs.releaseVersion }}
