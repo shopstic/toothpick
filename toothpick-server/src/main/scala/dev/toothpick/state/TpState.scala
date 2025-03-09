@@ -5,7 +5,7 @@ import dev.chopsticks.fp.zio_ext.MeasuredLogging
 import dev.chopsticks.kvdb.api.KvdbDatabaseApi
 import dev.chopsticks.kvdb.fdb.FdbDatabase
 import dev.chopsticks.kvdb.util.{KvdbIoThreadPool, KvdbSerdesThreadPool}
-import zio.{Has, RLayer, URIO, ZIO, ZManaged}
+import zio.{Has, RLayer, Schedule, URIO, ZIO, ZManaged}
 import zio.blocking.Blocking
 
 object TpState {
@@ -31,7 +31,9 @@ object TpState {
   ] = {
     val managed = for {
       config <- ZManaged.service[TpDbConfig]
-      backend <- FdbDatabase.manage(TpStateMaterialization, config.backend)
+      backend <- FdbDatabase
+        .manage(TpStateMaterialization, config.backend)
+        .retry(Schedule.once)
       dbApi <- KvdbDatabaseApi(backend).map(_.withOptions(_ => config.client)).toManaged_
     } yield LiveService(TpStateMaterialization, backend.asInstanceOf[FdbDatabase[TpStateDef.BaseCf, TpStateDef.CfSet]], dbApi)
 
