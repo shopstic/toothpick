@@ -23,7 +23,7 @@ env:
 jobs:
   release:
     name: Release ${{ github.event.inputs.releaseVersion }}
-    runs-on: [self-hosted, nix, general, arm64-linux, small]
+    runs-on: [self-hosted, nix, general, amd64-linux, small]
     timeout-minutes: 5
     env:
       RELEASE_VERSION: ${{ github.event.inputs.releaseVersion }}
